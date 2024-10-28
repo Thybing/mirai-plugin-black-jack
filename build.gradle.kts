@@ -10,12 +10,12 @@ plugins {
 group = "org.example"
 version = "0.1.0"
 
+
 repositories {
-    if (System.getenv("CI")?.toBoolean() != true) {
-        maven("https://maven.aliyun.com/repository/public") // 阿里云国内代理仓库
-    }
+    maven("https://s01.oss.sonatype.org/content/repositories/snapshots")
     mavenCentral()
 }
+
 
 buildConfig {
     className("BuildConstants")
@@ -36,8 +36,7 @@ mirai {
 }
 
 dependencies {
-    
-    val overflowVersion = "2.16.0"
-    compileOnly("top.mrxiaom:overflow-core-api:$overflowVersion")
-    testConsoleRuntime("top.mrxiaom:overflow-core:$overflowVersion")
+    val overflowVersion = "1.0.0.519-0d68f08-SNAPSHOT"
+    compileOnly("top.mrxiaom.mirai:overflow-core-api:$overflowVersion")
+    testConsoleRuntime("top.mrxiaom.mirai:overflow-core:$overflowVersion")
 }
