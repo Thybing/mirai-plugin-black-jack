@@ -1,18 +1,45 @@
 package org.example.mirai.plugin.blackjack
 
+
+internal enum class HitResult {
+    Success,SuccessButBust,HadBust,HadStand,
+}
+
+internal enum class DoubleResult {
+    Success,SuccessButBust,HadBust,HadStand,HadHit,HadSplit,
+}
+
+internal enum class StandResult {
+    Success,HadStand,HadBust,
+}
+
+//internal enum class
+
 internal class HandCard() {
+
     constructor(pokerCard: PokerCard) :this() {
+        handCard.add(pokerCard)
         splitFlag = true
+    }
+
+    override fun toString(): String {
+        var string = "|"
+        handCard.forEach{
+            string = "$string ${it.toString()} |"
+        }
+        return string
     }
 
     /**
      * 发初始底牌
      */
     fun initialCard(dealer: Dealer) {
+        check(handCard.size <= 2)
+
         while(handCard.size < 2) {
             add(dealer.dealCard())
         }
-        //如果是A分牌，不能成为黑杰克，并且立刻停牌
+        //如果是A分牌，不能成为黑杰克，并且立刻停牌(不允许A连续分牌)
         if (splitFlag && handCard.first().rank == PokerCard.Rank.Ace) {
             blackJackFlag = false
             stand()
@@ -25,19 +52,53 @@ internal class HandCard() {
     }
 
     /**
-     * 要一张牌。如果要牌后未爆牌，返回 true；如果爆牌，返回 false。
+     * 要一张牌。如果要牌后未爆牌，返回hit后的结果
      */
-    fun hit(dealer: Dealer) : Boolean {
-        check(!bustFlag)
-        add(dealer.dealCard())
-        bustFlag = isBust()
-        return !bustFlag
+    fun hit(dealer: Dealer) : HitResult = when{
+        bustFlag -> HitResult.HadBust
+        standFlag -> HitResult.HadStand
+        else -> {
+            add(dealer.dealCard())
+            if(isBust()) {
+                bustFlag = true
+                HitResult.SuccessButBust
+            }else{
+                HitResult.Success
+            }
+        }
+    }
+
+    /**
+     * 加倍
+     */
+    fun double(dealer: Dealer) : DoubleResult = when{
+        bustFlag -> DoubleResult.HadBust
+        standFlag -> DoubleResult.HadStand
+        handCard.size > 2 -> DoubleResult.HadHit
+        splitFlag -> DoubleResult.HadSplit
+        else -> when(hit(dealer)) {
+            HitResult.Success -> DoubleResult.Success.also { stand() }
+            HitResult.SuccessButBust -> DoubleResult.SuccessButBust.also { stand() }
+            else -> throw IllegalStateException("double had some error!")
+        }
+    }
+
+    /**
+     * 停牌
+     */
+    fun stand() : StandResult = when {
+        bustFlag -> StandResult.HadBust
+        standFlag -> StandResult.HadStand
+        else -> {
+            standFlag = true
+            StandResult.Success
+        }
     }
 
     /**
      * 分牌，返回分牌后的两套手牌
      */
-    fun split(dealer: Dealer) : List<HandCard> {
+    fun split() : List<HandCard> {
         check(splitCheck())
 
         val firstHandCard = HandCard(handCard.removeFirst())
@@ -47,20 +108,6 @@ internal class HandCard() {
 
         return listOf<HandCard>(firstHandCard,secondHandCard)
     }
-
-    /**
-     * 加倍
-     */
-    fun double(dealer: Dealer) : Boolean {
-        doubleFlag = true
-        return hit(dealer)
-    }
-
-    /**
-     * 停牌
-     */
-    fun stand() { standFlag = true }
-
 
     /**
      * 向手牌内加一张牌
@@ -79,7 +126,7 @@ internal class HandCard() {
      */
     fun splitCheck() : Boolean {
         if(handCard.size != 2) return false
-        if(handCard[0] != handCard[1]) return false
+        if(handCard[0].rank != handCard[1].rank) return false
         return true
     }
 
@@ -91,7 +138,7 @@ internal class HandCard() {
     }
 
     /**
-     * 获得最大价值
+     * 计算最大价值
      */
     fun getValue() : Int{
         val cardValue = handCard.map { if (it.rank.num > 10) 10 else it.rank.num }

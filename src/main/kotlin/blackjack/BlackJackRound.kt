@@ -2,8 +2,8 @@ package org.example.mirai.plugin.blackjack
 
 internal class BlackJackRound {
     private val dealer : Dealer = Dealer(4)
-    private lateinit var banker : Banker
-    private val punters : MutableMap<ULong,Punter> = mutableMapOf()
+    lateinit var banker : Banker
+    val punters : MutableMap<ULong,Punter> = mutableMapOf()
 
     /**
      * 设置庄家
@@ -22,9 +22,14 @@ internal class BlackJackRound {
     /**
      * 闲家下注
      */
-    fun bet(uniqueCode: ULong, chip : Int) {
+    fun bet(uniqueCode: ULong, chip : Int) : Boolean {
         val punter = punters[uniqueCode] ?: throw NoSuchElementException("No punter found with code: $uniqueCode")
-        punter.chip = chip
+        return if(punter.changeMoney(chip * -1)) {
+            punter.chip = chip
+            true
+        } else {
+            false
+        }
     }
 
     /**
@@ -42,30 +47,99 @@ internal class BlackJackRound {
      */
     fun checkBankerBlackJack() : Boolean = banker.curHand.isBlackJack()
 
-    /**
-     * 向上提供扣费接口，用于下注
-     */
-    fun cost(uniqueCode : ULong, chip: Int) : Boolean {
+    enum class  Operate {Hit,Double,Split,Stand,Surrender}
+
+    fun punterOperate(uniqueCode: ULong, operate : Operate) : String {
         val punter = punters[uniqueCode] ?: throw NoSuchElementException("No punter found with code: $uniqueCode")
-        return if(punter.money >= chip) {
-            punter.money -= chip
-            true
-        } else {
-            false
+        return when(operate) {
+            Operate.Hit -> when(punter.curHand.hit(dealer)) {
+                HitResult.Success -> "Hit成功"
+                HitResult.SuccessButBust -> {
+                    nextHand(punter,true)
+                    "Hit后爆牌"
+                }
+                HitResult.HadBust -> "已经爆牌"
+                HitResult.HadStand -> "已经停牌"
+            }
+            Operate.Double -> {
+                if (punter.money < punter.chip) {
+                    "Double失败，筹码不够"
+                } else {
+                    when(punter.curHand.double(dealer)) {
+                        DoubleResult.Success -> {
+                            punter.changeMoney(punter.chip * -1)
+                            "加倍成功"
+                        }
+                        DoubleResult.SuccessButBust -> {
+                            punter.changeMoney(punter.chip * -1)
+                            "加倍后爆牌"
+                        }
+                        DoubleResult.HadBust -> "已经爆牌"
+                        DoubleResult.HadStand -> "已经停牌"
+                        DoubleResult.HadSplit -> "分牌后不能加倍"
+                        DoubleResult.HadHit -> "拿牌后不能加倍"
+                    }
+                }
+            }
+            Operate.Stand -> when(punter.curHand.stand()) {
+                StandResult.Success -> {
+                    nextHand(punter,true)
+                    "停牌成功"
+                }
+                StandResult.HadStand -> "已经停牌"
+                StandResult.HadBust -> "已经爆牌"
+            }
+            Operate.Split -> {
+                if (punter.money < punter.chip) {
+                    "分牌失败，筹码不够"
+                } else if(!punter.curHand.splitCheck()) {
+                    "不满足分牌条件"
+                } else {
+                    punter.curHand.split().reversed().forEach{
+                        punter.splitStack.add(it)
+                    }
+                    nextHand(punter)
+                    "分牌成功"
+                }
+            }
+            Operate.Surrender -> TODO()
         }
     }
 
-    /**
-     * 向上提供扣费接口，用于加倍，分牌等
-     */
-    fun cost(uniqueCode : ULong) : Boolean {
-        val punter = punters[uniqueCode] ?: throw NoSuchElementException("No punter found with code: $uniqueCode")
-        return if(punter.money >= punter.chip) {
-            punter.money -= punter.chip
-            true
-        } else {
-            false
+    fun bankerOperate(operate : Operate) : String {
+        when(operate) {
+            Operate.Hit -> {
+                return if(banker.curHand.isBust()) {
+                    "已经爆牌"
+                } else if(banker.curHand.getValue() >= 17) {
+                    "超过17点,庄家不可要牌"
+                } else {
+                    when(banker.curHand.hit(dealer)) {
+                        HitResult.Success -> "Hit成功"
+                        HitResult.SuccessButBust -> "Hit后爆牌"
+                        HitResult.HadBust -> "已经爆牌"
+                        HitResult.HadStand -> "已经停牌"
+                    }
+                }
+            }
+            Operate.Stand ->
+                return if(banker.curHand.getValue() < 17) {
+                    "超过17点,庄家不可停牌"
+                } else {
+                    when(banker.curHand.stand()) {
+                        StandResult.Success -> "停牌成功"
+                        StandResult.HadStand -> "已经停牌"
+                        StandResult.HadBust -> "已经爆牌"
+                    }
+                }
+
+            else -> TODO()
         }
+    }
+
+    fun getPunterHand(uniqueCode: ULong) : HandCard {
+        val punter = punters[uniqueCode] ?: throw NoSuchElementException("No punter found with code: $uniqueCode")
+        return punter.curHand
     }
 
     /**
@@ -108,5 +182,15 @@ internal class BlackJackRound {
         banker.curHand.getValue() > handCard.getValue() -> CompareRes.Banker
         banker.curHand.getValue() < handCard.getValue() -> CompareRes.Punter
         else -> throw IllegalStateException("compare but no result")
+    }
+
+    private fun nextHand(punter : Punter, saveHand : Boolean = false) : Boolean {
+        return if(punter.splitStack.isNotEmpty()) {
+            if(saveHand) punter.preHand.add(punter.curHand)
+            punter.curHand = punter.splitStack.removeLast().also { it.initialCard(dealer) }
+            true
+        } else {
+            false
+        }
     }
 }
