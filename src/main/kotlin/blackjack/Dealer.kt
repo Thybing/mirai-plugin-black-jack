@@ -11,18 +11,27 @@ data class PokerCard(val suit: Suit, val rank: Rank) {
     override fun toString() = "${suit.toString()} ${rank.num.toString()}"
 }
 
-internal class Dealer(decks : Int) {
+internal class Dealer(decks : Int, debug : Boolean = false) {
     private val cards : MutableList<PokerCard> = mutableListOf()
 
     init {
-        repeat(decks) {
-            for (suit in PokerCard.Suit.values()) {
-                for (rank in PokerCard.Rank.values()) {
-                    cards.add(PokerCard(suit, rank))
+        if(!debug) {
+            repeat(decks) {
+                for (suit in PokerCard.Suit.values()) {
+                    for (rank in PokerCard.Rank.values()) {
+                        cards.add(PokerCard(suit, rank))
+                    }
                 }
             }
+            shuffleCards()
+        } else {
+            /**
+             *  Debug 模式下自定义牌序，方便调式
+             */
+            repeat(52) {
+                cards.add(PokerCard(PokerCard.Suit.Heart,PokerCard.Rank.Ace))
+            }
         }
-        shuffleCards()
     }
 
     private fun shuffleCards() {
