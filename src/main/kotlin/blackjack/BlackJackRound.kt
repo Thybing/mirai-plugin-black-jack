@@ -36,10 +36,10 @@ internal class BlackJackRound {
      * 发底牌
      */
     fun initHand() {
+        banker.curHand.initialCard(dealer)
         punters.values.forEach {
             it.curHand.initialCard(dealer)
         }
-        banker.curHand.initialCard(dealer)
     }
 
     /**
@@ -47,7 +47,7 @@ internal class BlackJackRound {
      */
     fun checkBankerBlackJack() : Boolean = banker.curHand.isBlackJack()
 
-    enum class  Operate {Hit,Double,Split,Stand,Surrender}
+    enum class  Operate {Hit,Double,Split,Stand,Next,Surrender}
 
     fun punterOperate(uniqueCode: ULong, operate : Operate) : String {
         val punter = punters[uniqueCode] ?: throw NoSuchElementException("No punter found with code: $uniqueCode")
@@ -55,7 +55,7 @@ internal class BlackJackRound {
             Operate.Hit -> when(punter.curHand.hit(dealer)) {
                 HitResult.Success -> "Hit成功"
                 HitResult.SuccessButBust -> {
-                    nextHand(punter,true)
+                    //nextHand(punter,true)
                     "Hit后爆牌"
                 }
                 HitResult.HadBust -> "已经爆牌"
@@ -83,7 +83,7 @@ internal class BlackJackRound {
             }
             Operate.Stand -> when(punter.curHand.stand()) {
                 StandResult.Success -> {
-                    nextHand(punter,true)
+                    //nextHand(punter, true)
                     "停牌成功"
                 }
                 StandResult.HadStand -> "已经停牌"
@@ -100,6 +100,20 @@ internal class BlackJackRound {
                     }
                     nextHand(punter)
                     "分牌成功"
+                }
+            }
+            Operate.Next -> {
+                if (!punter.curHand.splitFlag) {
+                    "您没有分过牌"
+                } else {
+                    if (!(punter.curHand.isBust() || punter.curHand.standFlag)) {
+                        "当前的手牌还未结束"
+                    }
+                    else if (nextHand(punter,true)) {
+                        "切换至下一套牌"
+                    } else {
+                        "没有下一套牌了"
+                    }
                 }
             }
             Operate.Surrender -> TODO()
@@ -124,7 +138,7 @@ internal class BlackJackRound {
             }
             Operate.Stand ->
                 return if(banker.curHand.getValue() < 17) {
-                    "超过17点,庄家不可停牌"
+                    "未到17点,庄家不允许停牌"
                 } else {
                     when(banker.curHand.stand()) {
                         StandResult.Success -> "停牌成功"
@@ -132,9 +146,20 @@ internal class BlackJackRound {
                         StandResult.HadBust -> "已经爆牌"
                     }
                 }
-
-            else -> TODO()
+            else -> return "庄家只能要牌或停牌"
         }
+    }
+
+    fun puntersEnd() : Boolean {
+        punters.values.forEach {
+            if (!it.curHand.standFlag && !it.curHand.isBust()) return false
+            if (it.splitStack.isNotEmpty()) return false
+        }
+        return true
+    }
+
+    fun bankerEnd() : Boolean {
+        return banker.curHand.isBust() || banker.curHand.standFlag
     }
 
     fun getPunterHand(uniqueCode: ULong) : HandCard {
@@ -184,6 +209,9 @@ internal class BlackJackRound {
         else -> throw IllegalStateException("compare but no result")
     }
 
+    /**
+     * 切换下一套手牌
+     */
     private fun nextHand(punter : Punter, saveHand : Boolean = false) : Boolean {
         return if(punter.splitStack.isNotEmpty()) {
             if(saveHand) punter.preHand.add(punter.curHand)

@@ -23,9 +23,9 @@ internal class HandCard() {
     }
 
     override fun toString(): String {
-        var string = "|"
+        var string = ""
         handCard.forEach{
-            string = "$string ${it.toString()} |"
+            string = "$string $it \n"
         }
         return string
     }
@@ -39,7 +39,7 @@ internal class HandCard() {
         while(handCard.size < 2) {
             add(dealer.dealCard())
         }
-        //如果是A分牌，不能成为黑杰克，并且立刻停牌(不允许A连续分牌)
+        //如果是A分牌，不能成为黑杰克，并且立刻停牌
         if (splitFlag && handCard.first().rank == PokerCard.Rank.Ace) {
             blackJackFlag = false
             stand()
@@ -80,7 +80,7 @@ internal class HandCard() {
             HitResult.Success -> DoubleResult.Success.also { stand() }
             HitResult.SuccessButBust -> DoubleResult.SuccessButBust.also { stand() }
             else -> throw IllegalStateException("double had some error!")
-        }
+        }.also { doubleFlag = true }
     }
 
     /**
@@ -106,7 +106,7 @@ internal class HandCard() {
         val secondHandCard = HandCard(handCard.removeFirst())
         secondHandCard.splitFlag = true
 
-        return listOf<HandCard>(firstHandCard,secondHandCard)
+        return listOf(firstHandCard,secondHandCard)
     }
 
     /**

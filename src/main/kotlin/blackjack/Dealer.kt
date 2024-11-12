@@ -3,7 +3,7 @@ package org.example.mirai.plugin.blackjack
 data class PokerCard(val suit: Suit, val rank: Rank) {
     enum class Suit {Heart, Spade, Club, Diamond}
     enum class Rank(val num: Int) {
-        Ace(1),Tow(2), Three(3), Four(4), Five(5),
+        Ace(1),Two(2), Three(3), Four(4), Five(5),
         Six(6), Seven(7), Eight(8), Nine(9), Ten(10),
         Jack(11), Queen(12), King(13);
     }
@@ -28,9 +28,16 @@ internal class Dealer(decks : Int, debug : Boolean = false) {
             /**
              *  Debug 模式下自定义牌序，方便调式
              */
-            repeat(52) {
-                cards.add(PokerCard(PokerCard.Suit.Heart,PokerCard.Rank.Ace))
+            repeat(2) {
+                cards.add(PokerCard(PokerCard.Suit.Heart,PokerCard.Rank.Two))
             }
+            cards.add(PokerCard(PokerCard.Suit.Spade,PokerCard.Rank.Two))
+            cards.add(PokerCard(PokerCard.Suit.Diamond,PokerCard.Rank.Two))
+            cards.add(PokerCard(PokerCard.Suit.Heart,PokerCard.Rank.Two))
+            repeat(20) {
+                cards.add(PokerCard(PokerCard.Suit.Heart,PokerCard.Rank.Eight))
+            }
+            cards.reverse()
         }
     }
 

@@ -8,14 +8,11 @@ import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
 import net.mamoe.mirai.contact.Member
 import net.mamoe.mirai.contact.User
 import net.mamoe.mirai.event.GlobalEventChannel
-import net.mamoe.mirai.event.events.BotInvitedJoinGroupRequestEvent
-import net.mamoe.mirai.event.events.FriendMessageEvent
 import net.mamoe.mirai.event.events.GroupMessageEvent
-import net.mamoe.mirai.event.events.NewFriendRequestEvent
-import net.mamoe.mirai.message.data.Image
-import net.mamoe.mirai.message.data.Image.Key.queryUrl
-import net.mamoe.mirai.message.data.PlainText
 import net.mamoe.mirai.utils.info
+import org.example.mirai.plugin.blackjack.BlackJackRound
+import org.example.mirai.plugin.blackjack.BlackJackManager
+import org.example.mirai.plugin.blackjack.BlackJackManager.addGame
 
 /**
  * 使用 kotlin 版请把
@@ -31,6 +28,9 @@ import net.mamoe.mirai.utils.info
  * 可以使用 `src/test/kotlin/RunMirai.kt` 在 ide 里直接调试，
  * 不用复制到 mirai-console-loader 或其他启动器中调试
  */
+
+private var blackJackRound: BlackJackRound = BlackJackRound()
+private var status = 0
 
 object PluginMain : KotlinPlugin(
     JvmPluginDescription(
@@ -51,48 +51,214 @@ object PluginMain : KotlinPlugin(
     override fun onEnable() {
         logger.info { "Plugin loaded" }
         //配置文件目录 "${dataFolder.absolutePath}/"
+
         val eventChannel = GlobalEventChannel.parentScope(this)
         eventChannel.subscribeAlways<GroupMessageEvent> {
-            //群消息
-            //复读示例
-            if (message.contentToString().startsWith("复读")) {
-                group.sendMessage(message.contentToString().replace("复读", ""))
-            }
-            if (message.contentToString() == "hi") {
-                //群内发送
-                group.sendMessage("hi")
-                //向发送者私聊发送消息
-                sender.sendMessage("hi")
-                //不继续处理
+
+            /**
+             * 用于处理接收消息
+            //每收到一条消息，先判断是否是开始游戏
+            //如果是开始游戏，检查发送方的群聊是否已经在游戏中。然后进行创建游戏/返回已经在游戏中
+            //如果是其它，检查发送所在群聊是否在游戏中，如果在游戏中，进行下一步
+            //判断发送者是否是该群聊中游戏参与者
+            //如果是，转发消息事件，由游戏部分处理
+            """
+             */
+            val text = message.contentToString()
+            if(text == "玩21点") {
+                if(BlackJackManager.isGroupGaming(group)) {
+                    group.sendMessage("21点正在游戏中")
+                } else {
+                    addGame(it)
+                    group.sendMessage("21点开始，请玩家加入")
+                }
                 return@subscribeAlways
             }
-            //分类示例
-            message.forEach {
-                //循环每个元素在消息里
-                if (it is Image) {
-                    //如果消息这一部分是图片
-                    val url = it.queryUrl()
-                    group.sendMessage("图片，下载地址$url")
-                }
-                if (it is PlainText) {
-                    //如果消息这一部分是纯文本
-                    group.sendMessage("纯文本，内容:${it.content}")
-                }
-            }
-        }
-        eventChannel.subscribeAlways<FriendMessageEvent> {
-            //好友信息
-            sender.sendMessage("hi")
-        }
-        eventChannel.subscribeAlways<NewFriendRequestEvent> {
-            //自动同意好友申请
-            accept()
-        }
-        eventChannel.subscribeAlways<BotInvitedJoinGroupRequestEvent> {
-            //自动同意加群申请
-            accept()
-        }
 
+            /**
+             * 发送者来自正在游戏的群
+             */
+            if(BlackJackManager.isGroupGaming(group)) {
+                when {
+                    /**
+                     * 正在加入游戏中，转发消息
+                     */
+                    BlackJackManager.isAddGame(group) -> {
+                        BlackJackManager.forwardMessage(it)
+                    }
+                    /**
+                     * 其它情况说明已经加入完成，检查发送者是否在群游戏中，如果满足则转发消息
+                     */
+                    BlackJackManager.isMemberGaming(sender) -> {
+                        BlackJackManager.forwardMessage(it)
+                    }
+                }
+            } else {
+                /**
+                 * 其它情况下不进行转发，提高效率
+                 */
+                return@subscribeAlways
+            }
+
+            /////////////////////////////////////////////////
+
+
+//            if (message.contentToString() == "/21点开局") {
+//                if (status == 0) {
+//                    group.sendMessage("创建21点游戏")
+//                    blackJackRound = BlackJackRound()
+//                    blackJackRound.setBanker(sender.nick, sender.id.toULong(), 1000)
+//                    status = 1
+//                } else {
+//                    group.sendMessage("21点正在游戏中")
+//                }
+//            }
+//            if (message.contentToString() == "/21点结束") {
+//                if (status == 0) {
+//                    group.sendMessage("不存在21点游戏")
+//                } else {
+//                    group.sendMessage("/结束21点")
+//                    status = 0
+//                }
+//                return@subscribeAlways
+//            }
+//
+//            //进人
+//            if (status == 1) {
+//                if (message.contentToString() == "/21点加入") {
+//                    blackJackRound.addPunter(sender.nick, sender.id.toULong(), 1000)
+//                }
+//                if (message.contentToString() == "/21点开始下注") {
+//                    status = 2
+//                }
+//                return@subscribeAlways
+//            }
+//
+//            if (status == 2) {
+//                if (message.contentToString().startsWith("/下注")) {
+//                    try {
+//                        val bet =
+//                            message.contentToString().replace("/下注", "").toInt()
+//                        blackJackRound.bet(sender.id.toULong(), bet)
+//                    } catch (e: NumberFormatException) {
+//                        group.sendMessage("下注示例: /下注100")
+//                    }
+//                }
+//                if (message.contentToString() == "/开始发牌") {
+//                    blackJackRound.initHand()
+//                    group.sendMessage(blackJackRound.banker.name + "\n" + blackJackRound.banker.curHand.toString())
+//                    blackJackRound.punters.values.forEach { punter ->
+//                        group.sendMessage(punter.name + "\n" + punter.curHand.toString())
+//                    }
+//                    if (blackJackRound.checkBankerBlackJack()) {
+//                        group.sendMessage("庄家抽到了黑杰克，进入结算状态")
+//                        status = 666
+//                    } else {
+//                        group.sendMessage("请闲家开始说话")
+//                        status = 4
+//                    }
+//                }
+//                return@subscribeAlways
+//            }
+//
+//            if (status == 4) {
+//                val punter = blackJackRound.punters[sender.id.toULong()] ?: return@subscribeAlways
+//                when (message.contentToString()) {
+//                    "/Hit" -> {
+//                        group.sendMessage(
+//                            sender.nick + ":"
+//                                + blackJackRound.punterOperate(sender.id.toULong(), BlackJackRound.Operate.Hit)
+//                                + "\n"
+//                                + punter.curHand.toString()
+//                        )
+//                    }
+//
+//                    "/Stand" -> {
+//                        group.sendMessage(
+//                            sender.nick + ":"
+//                                + blackJackRound.punterOperate(sender.id.toULong(), BlackJackRound.Operate.Stand)
+//                                + "\n"
+//                                + punter.curHand.toString()
+//                        )
+//                    }
+//
+//                    "/Double" -> {
+//                        group.sendMessage(
+//                            sender.nick + ":"
+//                                + blackJackRound.punterOperate(sender.id.toULong(), BlackJackRound.Operate.Double)
+//                                + "\n"
+//                                + punter.curHand.toString()
+//                        )
+//                    }
+//
+//                    "/Split" -> {
+//                        group.sendMessage(
+//                            sender.nick + ":"
+//                                + blackJackRound.punterOperate(sender.id.toULong(), BlackJackRound.Operate.Split)
+//                                + "\n"
+//                                + punter.curHand.toString()
+//                        )
+//                    }
+//
+//                    "/Next" -> {
+//                        group.sendMessage(
+//                            sender.nick + ":"
+//                                + blackJackRound.punterOperate(sender.id.toULong(), BlackJackRound.Operate.Next)
+//                                + "\n"
+//                                + punter.curHand.toString()
+//                        )
+//                    }
+//
+//                    else -> null
+//                }
+//                if (blackJackRound.puntersEnd()) {
+//                    group.sendMessage("请庄家开始说话")
+//                    status = 5
+//                }
+//                return@subscribeAlways
+//            }
+//
+//            if (status == 5) {
+//                if (sender.id.toULong() == blackJackRound.banker.uniqueCode) {
+//                    when (message.contentToString()) {
+//                        "/Hit" -> {
+//                            group.sendMessage(
+//                                sender.nick + ":"
+//                                    + blackJackRound.bankerOperate(BlackJackRound.Operate.Hit)
+//                                    + "\n"
+//                                    + blackJackRound.banker.curHand.toString()
+//                            )
+//                        }
+//                        "/Stand" -> {
+//                            group.sendMessage(
+//                                sender.nick + ":"
+//                                    + blackJackRound.bankerOperate(BlackJackRound.Operate.Stand)
+//                                    + "\n"
+//                                    + blackJackRound.banker.curHand.toString()
+//                            )
+//                        }
+//
+//                        else -> null
+//                    }
+//                    if (blackJackRound.bankerEnd()) {
+//                        status = 666
+//                    }
+//                }
+//                return@subscribeAlways
+//            }
+//
+//            if (status == 666) {
+//                if (message.contentToString() == "/开始结算") {
+//                    status = 0
+//                    blackJackRound.settlement()
+//                    group.sendMessage(blackJackRound.banker.name + "left ${blackJackRound.banker.money}")
+//                    blackJackRound.punters.values.forEach { punter ->
+//                        group.sendMessage(punter.name + "left ${punter.money}")
+//                    }
+//                }
+//                return@subscribeAlways
+//            }
+        }
         myCustomPermission // 注册权限
     }
 
