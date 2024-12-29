@@ -48,7 +48,7 @@ object BlackJackManager {
     }
 
     /**
-     * 添加群游戏，传入事件，使用工厂是为了可能的扩展
+     * 添加群游戏，传入事件，使用游戏创建工厂
      */
     fun addGame(messageEvent: GroupMessageEvent) {
         gameDirectory[messageEvent.group] = BlackJackFactory.create(messageEvent, this::removeGame)
@@ -64,7 +64,7 @@ object BlackJackManager {
     /**
      * 转发通过过滤后的消息
      */
-    fun forwardMessage(messageEvent: GroupMessageEvent) {
+    suspend fun forwardMessage(messageEvent: GroupMessageEvent) {
         gameDirectory[messageEvent.group]?.receiveFilteredEvent(messageEvent)?:throw IllegalStateException("群不在游戏中，但是消息通过了过滤进入了转发")
     }
 }

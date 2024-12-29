@@ -36,7 +36,7 @@ mirai {
 }
 
 dependencies {
-    val overflowVersion = "1.0.0.519-0d68f08-SNAPSHOT"
+    val overflowVersion = "1.0.1"
     compileOnly("top.mrxiaom.mirai:overflow-core-api:$overflowVersion")
     testConsoleRuntime("top.mrxiaom.mirai:overflow-core:$overflowVersion")
 }

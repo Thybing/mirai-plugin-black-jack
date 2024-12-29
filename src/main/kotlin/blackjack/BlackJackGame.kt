@@ -5,6 +5,10 @@ import kotlinx.coroutines.channels.Channel
 import net.mamoe.mirai.contact.Group
 import net.mamoe.mirai.contact.Member
 import net.mamoe.mirai.event.events.GroupMessageEvent
+import net.mamoe.mirai.message.data.At
+import net.mamoe.mirai.message.data.Message
+import net.mamoe.mirai.message.data.PlainText
+import net.mamoe.mirai.message.data.at
 
 
 internal class BlackJackGame(private val group: Group,private val onGameOver: (Group) -> Unit) {
@@ -24,7 +28,14 @@ internal class BlackJackGame(private val group: Group,private val onGameOver: (G
 
     private suspend fun processEvent(channel: Channel<GroupMessageEvent>) {
         for (event in channel) {
-            eventHandler(event)
+            try {
+                eventHandler(event)
+            }catch(e: Exception) {
+                TODO("异常处理")
+            }finally {
+                onGameOver(group)
+                TODO("资源回收")
+            }
         }
     }
 
@@ -33,45 +44,40 @@ internal class BlackJackGame(private val group: Group,private val onGameOver: (G
             addPlayer(event)
             return
         }
-
         curRound?.gameProcess(event)?: throw Exception("ready for game but round was null")
         if (curRound?.isRoundEnd()?:throw Exception("ready for game but round was null")) {
             if(nextRound()) {
-                TODO("start round")
+                startRound(event)
             } else {
-                onGameOver(group)
+                TODO("总体结算")
+                scope.cancel()
             }
         }
     }
 
-    fun receiveFilteredEvent(event: GroupMessageEvent) {
-        scope.launch {
-            try {
-                filteredGroupMessage.send(event)
-            }catch(e: Exception) {
-
-            }finally {
-
-            }
-        }
+    suspend fun receiveFilteredEvent(event: GroupMessageEvent) {
+        filteredGroupMessage.send(event)
     }
 
     private suspend fun addPlayer(event: GroupMessageEvent) {
         when(event.message.contentToString()) {
             "加入" -> {
-                if(event.sender in gamePlayer)
+                if(event.sender in gamePlayer) {
+                    event.group.sendMessage(event.sender.at() + ",您已加入游戏")
                     return
+                }
                 gamePlayer.add(event.sender)
+                event.group.sendMessage(event.sender.at() + ",加入成功")
             }
             "停止加入" -> {
                 if(gamePlayer.count() < 2) {
                     event.group.sendMessage("游戏人数不满两人")
                     return
                 }
-                event.group.sendMessage("停止加入游戏")
+                event.group.sendMessage("已停止加入游戏")
                 ready = true
                 nextRound()
-                TODO("start round")
+                startRound(event)
             }
         }
     }
@@ -83,12 +89,17 @@ internal class BlackJackGame(private val group: Group,private val onGameOver: (G
         }
         curRound = BlackJackRound()
         curRound?.setBanker(gamePlayer[curBankerIndex].nameCard,gamePlayer[curBankerIndex].id.toULong(),100)
-        for(each in gamePlayer.subList(curBankerIndex + 1,gamePlayer.count())) {
-            curRound?.addPunter(each.nameCard,each.id.toULong(),100)
-        }
-        for(each in gamePlayer.subList(0, curBankerIndex)) {
-            curRound?.addPunter(each.nameCard,each.id.toULong(),100)
+        for(each in gamePlayer) {
+            if(each != gamePlayer[curBankerIndex]) {
+                curRound?.addPunter(each.nameCard, each.id.toULong(), 100)
+            }
         }
         return true
+    }
+
+    private suspend fun startRound(event: GroupMessageEvent) {
+        event.group.sendMessage(PlainText("Round:${curBankerIndex + 1}/${gamePlayer.count()}\n" +
+        "庄家为:") + gamePlayer[curBankerIndex].at() +
+        "请闲家开始下注")
     }
 }

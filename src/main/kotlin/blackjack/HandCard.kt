@@ -17,6 +17,7 @@ internal enum class StandResult {
 
 internal class HandCard() {
 
+    //仅在分牌时调用的初始化HandCard，会自动添加分开的牌，并且将已分牌的标志位置位
     constructor(pokerCard: PokerCard) :this() {
         handCard.add(pokerCard)
         splitFlag = true
@@ -39,7 +40,7 @@ internal class HandCard() {
         while(handCard.size < 2) {
             add(dealer.dealCard())
         }
-        //如果是A分牌，不能成为黑杰克，并且立刻停牌
+        //如果是对A分牌之后的手牌，不能成为黑杰克，并且立刻停牌
         if (splitFlag && handCard.first().rank == PokerCard.Rank.Ace) {
             blackJackFlag = false
             stand()
@@ -122,9 +123,10 @@ internal class HandCard() {
     }
 
     /**
-     * 可以进行分牌
+     * 返回是否可以进行分牌
      */
     fun splitCheck() : Boolean {
+        if(standFlag) return false
         if(handCard.size != 2) return false
         if(handCard[0].rank != handCard[1].rank) return false
         return true

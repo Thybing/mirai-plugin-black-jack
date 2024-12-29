@@ -1,12 +1,11 @@
 package org.example.mirai.plugin.blackjack
 
-import com.sun.org.apache.xpath.internal.operations.Bool
 import net.mamoe.mirai.event.events.GroupMessageEvent
 
 internal class BlackJackRound {
     private val dealer : Dealer = Dealer(4)
     private lateinit var banker : Banker
-    val punters : MutableMap<ULong,Punter> = mutableMapOf()
+    private val punters : MutableMap<ULong,Punter> = mutableMapOf()
 
     private var roundState : Int = 0
 
@@ -44,7 +43,7 @@ internal class BlackJackRound {
         //发牌
         if(roundState == 1) {
             initHand()
-            TODO("show hand card")
+            showInitHand()
             roundState++
         }
 
@@ -52,7 +51,7 @@ internal class BlackJackRound {
         if(roundState == 2) {
             if(banker.curHand.isBlackJack()) {
                 event.group.sendMessage("庄家底牌为BlackJack，进入结算")
-                roundState = 5
+                roundState = 5 //直接进入结算阶段
             } else {
                 event.group.sendMessage("请闲家开始说话")
                 roundState++
@@ -89,7 +88,6 @@ internal class BlackJackRound {
         if(roundState == 5) {
             settlement()
             TODO("show pic")
-
         }
     }
 
@@ -136,6 +134,10 @@ internal class BlackJackRound {
         }
     }
 
+    private suspend fun showInitHand() {
+        //
+    }
+
     private enum class Operate {Hit,Double,Split,Stand,Next,Surrender}
 
     private fun strToOperate(str : String) : Operate? {
@@ -156,7 +158,6 @@ internal class BlackJackRound {
             Operate.Hit -> when(punter.curHand.hit(dealer)) {
                 HitResult.Success -> "Hit成功"
                 HitResult.SuccessButBust -> {
-                    //nextHand(punter,true)
                     "Hit后爆牌"
                 }
                 HitResult.HadBust -> "已经爆牌"
@@ -182,9 +183,9 @@ internal class BlackJackRound {
                     }
                 }
             }
+
             Operate.Stand -> when(punter.curHand.stand()) {
                 StandResult.Success -> {
-                    //nextHand(punter, true)
                     "停牌成功"
                 }
                 StandResult.HadStand -> "已经停牌"
@@ -311,7 +312,7 @@ internal class BlackJackRound {
     }
 
     /**
-     * 切换下一套手牌
+     * 切换下一套手牌，saveHand为是否保存当前手牌(如果是分牌之后的手牌那么就不保存，如果是主动切换手牌就保存)
      */
     private fun nextHand(punter : Punter, saveHand : Boolean = false) : Boolean {
         return if(punter.splitStack.isNotEmpty()) {
