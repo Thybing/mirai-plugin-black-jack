@@ -5,20 +5,20 @@ import kotlinx.coroutines.channels.Channel
 import net.mamoe.mirai.contact.Group
 import net.mamoe.mirai.contact.Member
 import net.mamoe.mirai.event.events.GroupMessageEvent
-import net.mamoe.mirai.message.data.content
 
 
-internal class BlackJackGame(group: Group) {
+internal class BlackJackGame(private val group: Group,private val onGameOver: (Group) -> Unit) {
     val gamePlayer : MutableList<Member> = mutableListOf()
-    val curRound : BlackJackRound? = null
+    var curBankerIndex : Int = -1
+    var curRound : BlackJackRound? = null
     var ready : Boolean = false
-    private val filteredEventChannel = Channel<GroupMessageEvent>()
+    private val filteredGroupMessage = Channel<GroupMessageEvent>()
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     init {
         scope.launch {
-            processEvent(filteredEventChannel)
+            processEvent(filteredGroupMessage)
         }
     }
 
@@ -29,12 +29,66 @@ internal class BlackJackGame(group: Group) {
     }
 
     private suspend fun eventHandler(event: GroupMessageEvent) {
-        event.group.sendMessage("收到了信息" + event.message.contentToString())
+        if(!ready) {
+            addPlayer(event)
+            return
+        }
+
+        curRound?.gameProcess(event)?: throw Exception("ready for game but round was null")
+        if (curRound?.isRoundEnd()?:throw Exception("ready for game but round was null")) {
+            if(nextRound()) {
+                TODO("start round")
+            } else {
+                onGameOver(group)
+            }
+        }
     }
 
     fun receiveFilteredEvent(event: GroupMessageEvent) {
         scope.launch {
-            filteredEventChannel.send(event)
+            try {
+                filteredGroupMessage.send(event)
+            }catch(e: Exception) {
+
+            }finally {
+
+            }
         }
+    }
+
+    private suspend fun addPlayer(event: GroupMessageEvent) {
+        when(event.message.contentToString()) {
+            "加入" -> {
+                if(event.sender in gamePlayer)
+                    return
+                gamePlayer.add(event.sender)
+            }
+            "停止加入" -> {
+                if(gamePlayer.count() < 2) {
+                    event.group.sendMessage("游戏人数不满两人")
+                    return
+                }
+                event.group.sendMessage("停止加入游戏")
+                ready = true
+                nextRound()
+                TODO("start round")
+            }
+        }
+    }
+
+    private fun nextRound() : Boolean{
+        curBankerIndex++
+        if(curBankerIndex >= gamePlayer.count()) {
+            return false
+        }
+        curRound = BlackJackRound()
+        curRound?.setBanker(gamePlayer[curBankerIndex].nameCard,gamePlayer[curBankerIndex].id.toULong(),100)
+        for(each in gamePlayer.subList(curBankerIndex + 1,gamePlayer.count())) {
+            curRound?.addPunter(each.nameCard,each.id.toULong(),100)
+        }
+        for(each in gamePlayer.subList(0, curBankerIndex)) {
+            curRound?.addPunter(each.nameCard,each.id.toULong(),100)
+        }
+        return true
     }
 }

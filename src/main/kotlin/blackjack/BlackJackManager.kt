@@ -1,5 +1,6 @@
 package org.example.mirai.plugin.blackjack
 
+import kotlinx.coroutines.cancel
 import net.mamoe.mirai.contact.Group
 import net.mamoe.mirai.contact.Member
 import net.mamoe.mirai.contact.isOwner
@@ -47,10 +48,17 @@ object BlackJackManager {
     }
 
     /**
-     * 添加群游戏，传入事件并且使用工厂是为了可能的扩展
+     * 添加群游戏，传入事件，使用工厂是为了可能的扩展
      */
     fun addGame(messageEvent: GroupMessageEvent) {
-        gameDirectory[messageEvent.group] = BlackJackFactory.create(messageEvent)
+        gameDirectory[messageEvent.group] = BlackJackFactory.create(messageEvent, this::removeGame)
+    }
+
+    /**
+     * 移除群游戏，作为游戏结束后的回调
+     */
+    fun removeGame(group: Group) {
+        gameDirectory.remove(group)
     }
 
     /**

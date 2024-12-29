@@ -1,9 +1,101 @@
 package org.example.mirai.plugin.blackjack
 
+import com.sun.org.apache.xpath.internal.operations.Bool
+import net.mamoe.mirai.event.events.GroupMessageEvent
+
 internal class BlackJackRound {
     private val dealer : Dealer = Dealer(4)
-    lateinit var banker : Banker
+    private lateinit var banker : Banker
     val punters : MutableMap<ULong,Punter> = mutableMapOf()
+
+    private var roundState : Int = 0
+
+    suspend fun gameProcess(event: GroupMessageEvent) {
+        val active = event.message.contentToString()
+        val uniqueCode = event.sender.id.toULong()
+
+        //下注
+        if(roundState == 0) {
+            //庄家会通过前置的过滤来到下注
+            if(uniqueCode == banker.uniqueCode) {
+                return
+            }
+            if (active.startsWith('$')) {
+                try {
+                    val chip = active.substringAfter('$').toInt()
+                    if(chip <= 0) {
+                        event.group.sendMessage("下注金额不合法")
+                        return
+                    }
+                    event.group.sendMessage(bet(uniqueCode, chip))
+                } catch (_: NumberFormatException) {
+                    event.group.sendMessage("下注格式错误")
+                    return
+                }
+            }
+
+            if (isBetEnd()) {
+                roundState++
+                event.group.sendMessage("下注结束，开始发牌")
+            } else {
+                return
+            }
+        }
+        //发牌
+        if(roundState == 1) {
+            initHand()
+            TODO("show hand card")
+            roundState++
+        }
+
+        //发牌后事件
+        if(roundState == 2) {
+            if(banker.curHand.isBlackJack()) {
+                event.group.sendMessage("庄家底牌为BlackJack，进入结算")
+                roundState = 5
+            } else {
+                event.group.sendMessage("请闲家开始说话")
+                roundState++
+                return
+            }
+        }
+
+        //闲家说话
+        if(roundState == 3) {
+            val op = strToOperate(active) ?: return
+            event.group.sendMessage(punterOperate(uniqueCode, op))
+            showPunterHand(uniqueCode)
+
+            if(isPuntersEnd()) {
+                event.group.sendMessage("请庄家开始说话")
+                roundState++
+            } else {
+                return
+            }
+        }
+
+        //庄家说话
+        if(roundState == 4) {
+            val op = strToOperate(active) ?: return
+            event.group.sendMessage(bankerOperate(op))
+
+            if(isBankerEnd()) {
+                event.group.sendMessage("游戏结束，开始结算")
+                roundState++
+            }
+        }
+
+        //结算
+        if(roundState == 5) {
+            settlement()
+            TODO("show pic")
+
+        }
+    }
+
+    fun isRoundEnd() : Boolean{
+        return roundState == 5
+    }
 
     /**
      * 设置庄家
@@ -22,14 +114,16 @@ internal class BlackJackRound {
     /**
      * 闲家下注
      */
-    fun bet(uniqueCode: ULong, chip : Int) : Boolean {
+    fun bet(uniqueCode: ULong, chip : Int) : String{
         val punter = punters[uniqueCode] ?: throw NoSuchElementException("No punter found with code: $uniqueCode")
-        return if(punter.changeMoney(chip * -1)) {
-            punter.chip = chip
-            true
-        } else {
-            false
+        return punter.bet(chip)
+    }
+
+    private fun isBetEnd() : Boolean {
+        for (punter in punters.values) {
+            if(punter.chip == -1) return false
         }
+        return true
     }
 
     /**
@@ -42,14 +136,21 @@ internal class BlackJackRound {
         }
     }
 
-    /**
-     * 检查庄家是否构成黑杰克
-     */
-    fun checkBankerBlackJack() : Boolean = banker.curHand.isBlackJack()
+    private enum class Operate {Hit,Double,Split,Stand,Next,Surrender}
 
-    enum class  Operate {Hit,Double,Split,Stand,Next,Surrender}
+    private fun strToOperate(str : String) : Operate? {
+        return when(str) {
+            "Hit" -> Operate.Hit
+            "Double" -> Operate.Double
+            "Split" -> Operate.Split
+            "Stand" -> Operate.Stand
+            "Next" -> Operate.Next
+            "Surrender" -> null
+            else -> null
+        }
+    }
 
-    fun punterOperate(uniqueCode: ULong, operate : Operate) : String {
+    private fun punterOperate(uniqueCode: ULong, operate : Operate) : String {
         val punter = punters[uniqueCode] ?: throw NoSuchElementException("No punter found with code: $uniqueCode")
         return when(operate) {
             Operate.Hit -> when(punter.curHand.hit(dealer)) {
@@ -120,7 +221,7 @@ internal class BlackJackRound {
         }
     }
 
-    fun bankerOperate(operate : Operate) : String {
+    private fun bankerOperate(operate : Operate) : String {
         when(operate) {
             Operate.Hit -> {
                 return if(banker.curHand.isBust()) {
@@ -150,7 +251,7 @@ internal class BlackJackRound {
         }
     }
 
-    fun puntersEnd() : Boolean {
+    fun isPuntersEnd() : Boolean {
         punters.values.forEach {
             if (!it.curHand.standFlag && !it.curHand.isBust()) return false
             if (it.splitStack.isNotEmpty()) return false
@@ -158,7 +259,7 @@ internal class BlackJackRound {
         return true
     }
 
-    fun bankerEnd() : Boolean {
+    fun isBankerEnd() : Boolean {
         return banker.curHand.isBust() || banker.curHand.standFlag
     }
 
@@ -220,5 +321,10 @@ internal class BlackJackRound {
         } else {
             false
         }
+    }
+
+     private fun showPunterHand(uniqueCode: ULong) {
+         val punter = punters[uniqueCode] ?: throw NoSuchElementException("No punter found with code: $uniqueCode")
+         punter.name + ":" + "\n" + punter.curHand.toString()
     }
 }

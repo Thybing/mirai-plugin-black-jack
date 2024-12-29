@@ -23,5 +23,20 @@ internal class Punter(name : String, uniqueCode : ULong, money: Int) : Player(na
     val preHand : MutableList<HandCard> = mutableListOf()
     val splitStack : MutableList<HandCard> = mutableListOf()
 
-    var chip: Int = 0
+    var chip: Int = -1
+
+    /**
+     * 闲家下注
+     */
+    fun bet(chip : Int) : String {
+        return if(this.chip != -1) {
+            "${name}已经下注过"
+        }
+        else if(changeMoney(chip * -1)) {
+            this.chip = chip
+            "${name}下注${chip}"
+        } else {
+            "${name}下注失败，筹码不足"
+        }
+    }
 }
