@@ -1,25 +1,29 @@
 package org.example.mirai.plugin.blackjack
 
-internal abstract class Player(val name : String, val uniqueCode : ULong,  var money : Int) {
-    //玩家当前正在操作的手牌
-    var curHand : HandCard = HandCard()
+import net.mamoe.mirai.contact.Member
+import net.mamoe.mirai.message.data.at
 
+internal class Player(val member : Member, var money : Int) {
     fun changeMoney(delta : Int) : Boolean {
-        return if (money + delta >= 0) {
+        if (money + delta >= 0) {
             money += delta
-            true
+            return true
         }else {
-            false
+            return false
         }
     }
 }
 
 
-internal class Banker(name : String, uniqueCode : ULong, money: Int) : Player(name, uniqueCode, money) {
-
+internal class Banker(val player: Player) {
+    //玩家当前正在操作的手牌
+    var curHand : HandCard = HandCard()
 }
 
-internal class Punter(name : String, uniqueCode : ULong, money: Int) : Player(name, uniqueCode, money) {
+internal class Punter(val player: Player) {
+    //玩家当前正在操作的手牌
+    var curHand : HandCard = HandCard()
+
     val preHand : MutableList<HandCard> = mutableListOf()
     val splitStack : MutableList<HandCard> = mutableListOf()
 
@@ -28,15 +32,17 @@ internal class Punter(name : String, uniqueCode : ULong, money: Int) : Player(na
     /**
      * 闲家下注
      */
-    fun bet(chip : Int) : String {
-        return if(this.chip != -1) {
-            "${name}已经下注过"
-        }
-        else if(changeMoney(chip * -1)) {
-            this.chip = chip
-            "${name}下注${chip}"
-        } else {
-            "${name}下注失败，筹码不足"
-        }
+    suspend fun bet(chip : Int) {
+        player.member.group.sendMessage(
+            if(this.chip != -1) {
+                player.member.at() + "已经下注过"
+            }
+            else if(player.changeMoney(chip * -1)) {
+                this.chip = chip
+                player.member.at() + "下注金额:${chip}"
+            } else {
+                player.member.at() + "下注失败，筹码不足"
+            }
+        )
     }
 }

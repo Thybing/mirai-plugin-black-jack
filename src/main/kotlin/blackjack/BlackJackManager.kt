@@ -1,11 +1,8 @@
 package org.example.mirai.plugin.blackjack
 
-import kotlinx.coroutines.cancel
 import net.mamoe.mirai.contact.Group
 import net.mamoe.mirai.contact.Member
-import net.mamoe.mirai.contact.isOwner
 import net.mamoe.mirai.event.events.GroupMessageEvent
-import org.example.mirai.plugin.blackjack.BlackJackFactory
 
 object BlackJackManager {
     /**
@@ -23,21 +20,10 @@ object BlackJackManager {
     /**
      * 检查群成员是否在该群游戏中
      */
-    fun isMemberGaming(member: Member): Boolean {
-        /**
-         * 所在群不在游戏中
-         */
-        if (member.group !in gameDirectory.keys) {
-            return false
-        }
-        /**
-         * 群游戏名单中没有此成员
-         */
-        if (member !in (gameDirectory[member.group]?.gamePlayer ?: return false)) {
-            return false
-        }
-        return true
-    }
+    fun isMemberGaming(member: Member): Boolean =
+        gameDirectory[member.group]?.run {
+            gamePlayer.any{it.member == member}
+        }?:false
 
     /**
      * 检查群是否处于加入游戏状态

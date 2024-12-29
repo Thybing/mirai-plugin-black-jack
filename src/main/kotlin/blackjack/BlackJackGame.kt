@@ -3,16 +3,13 @@ package org.example.mirai.plugin.blackjack
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import net.mamoe.mirai.contact.Group
-import net.mamoe.mirai.contact.Member
 import net.mamoe.mirai.event.events.GroupMessageEvent
-import net.mamoe.mirai.message.data.At
-import net.mamoe.mirai.message.data.Message
 import net.mamoe.mirai.message.data.PlainText
 import net.mamoe.mirai.message.data.at
 
 
 internal class BlackJackGame(private val group: Group,private val onGameOver: (Group) -> Unit) {
-    val gamePlayer : MutableList<Member> = mutableListOf()
+    val gamePlayer : MutableList<Player> = mutableListOf()
     var curBankerIndex : Int = -1
     var curRound : BlackJackRound? = null
     var ready : Boolean = false
@@ -62,11 +59,11 @@ internal class BlackJackGame(private val group: Group,private val onGameOver: (G
     private suspend fun addPlayer(event: GroupMessageEvent) {
         when(event.message.contentToString()) {
             "加入" -> {
-                if(event.sender in gamePlayer) {
+                if(gamePlayer.any{it.member == event.sender}){
                     event.group.sendMessage(event.sender.at() + ",您已加入游戏")
                     return
                 }
-                gamePlayer.add(event.sender)
+                gamePlayer.add(Player(event.sender, 1000))
                 event.group.sendMessage(event.sender.at() + ",加入成功")
             }
             "停止加入" -> {
@@ -88,10 +85,10 @@ internal class BlackJackGame(private val group: Group,private val onGameOver: (G
             return false
         }
         curRound = BlackJackRound()
-        curRound?.setBanker(gamePlayer[curBankerIndex].nameCard,gamePlayer[curBankerIndex].id.toULong(),100)
+        curRound?.setBanker(gamePlayer[curBankerIndex])
         for(each in gamePlayer) {
             if(each != gamePlayer[curBankerIndex]) {
-                curRound?.addPunter(each.nameCard, each.id.toULong(), 100)
+                curRound?.addPunter(gamePlayer[curBankerIndex])
             }
         }
         return true
@@ -99,7 +96,7 @@ internal class BlackJackGame(private val group: Group,private val onGameOver: (G
 
     private suspend fun startRound(event: GroupMessageEvent) {
         event.group.sendMessage(PlainText("Round:${curBankerIndex + 1}/${gamePlayer.count()}\n" +
-        "庄家为:") + gamePlayer[curBankerIndex].at() +
+        "庄家为:") + gamePlayer[curBankerIndex].member.at() +
         "请闲家开始下注")
     }
 }
