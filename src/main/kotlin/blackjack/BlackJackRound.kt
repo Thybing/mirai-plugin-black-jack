@@ -1,8 +1,14 @@
 package org.example.mirai.plugin.blackjack
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.message.data.PlainText
 import net.mamoe.mirai.message.data.at
+import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
+import java.io.File
+import javax.imageio.ImageIO
+
 
 internal class BlackJackRound {
     private val dealer : Dealer = Dealer(4)
@@ -80,6 +86,7 @@ internal class BlackJackRound {
             if(banker.player.member != event.sender) return
             val op = strToOperate(active) ?: return
             bankerOperate(op)
+            showBankerHand(banker,false)
 
             if(isBankerEnd()) {
                 event.group.sendMessage("本局结束，开始结算")
@@ -90,7 +97,7 @@ internal class BlackJackRound {
         //结算
         if(roundState == 5) {
             settlement()
-            TODO("show pic")
+//            TODO("show pic")
         }
     }
 
@@ -124,9 +131,6 @@ internal class BlackJackRound {
         }
     }
 
-    private suspend fun showInitHand() {
-        TODO("show init hand")
-    }
 
     private enum class Operate {Hit,Double,Split,Stand,Next,Surrender}
 
@@ -253,6 +257,7 @@ internal class BlackJackRound {
      */
     fun settlement() {
         punters.forEach { punter ->
+            // 将curHand添加到pre中
             punter.preHand.add(punter.curHand)
             punter.preHand.forEach {
                 when(compare(it)){
@@ -303,7 +308,27 @@ internal class BlackJackRound {
         }
     }
 
-     private suspend fun showPunterHand(punter: Punter) {
-         punter.player.member.group.sendMessage(punter.player.member.at() + ":" + "\n" + punter.curHand.toString())
+    private suspend fun showBankerHand(banker: Banker,shadowFirst : Boolean) {
+        banker.player.member.group.sendMessage(banker.player.member.at() + "\n" +
+            banker.player.member.group.uploadImage(
+                bufferedImageToResource(HandPicCreater.createBankerPic(banker,shadowFirst))
+            )
+        )
+    }
+
+    // 展示闲家手牌
+    private suspend fun showPunterHand(punter: Punter) {
+        punter.player.member.group.sendMessage(punter.player.member.at() + "\n" +
+            punter.player.member.group.uploadImage(
+                bufferedImageToResource(HandPicCreater.createPunterPic(punter))
+            )
+        )
+    }
+
+    private suspend fun showInitHand() {
+        showBankerHand(banker,true)
+        punters.forEach {
+            showPunterHand(it)
+        }
     }
 }

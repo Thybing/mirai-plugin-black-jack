@@ -2,8 +2,10 @@ package org.example.mirai.plugin.blackjack
 
 import net.mamoe.mirai.contact.Member
 import net.mamoe.mirai.message.data.at
+import java.awt.image.BufferedImage
 
 internal class Player(val member : Member, var money : Int) {
+    var avatar : BufferedImage = HandPicCreater.urlToBufferedImage("http://q2.qlogo.cn/headimg_dl?dst_uin=${member.id}&spec=100")
     fun changeMoney(delta : Int) : Boolean {
         if (money + delta >= 0) {
             money += delta

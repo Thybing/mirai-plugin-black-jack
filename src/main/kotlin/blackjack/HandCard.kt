@@ -16,6 +16,17 @@ internal enum class StandResult {
 //internal enum class
 
 internal class HandCard() {
+    /**
+     * 手牌
+     */
+    val handCard = mutableListOf<PokerCard>()
+
+    //状态标志
+    var standFlag = false
+    var bustFlag = false
+    var doubleFlag = false
+    var splitFlag = false
+    var blackJackFlag = false
 
     //仅在分牌时调用的初始化HandCard，会自动添加分开的牌，并且将已分牌的标志位置位
     constructor(pokerCard: PokerCard) :this() {
@@ -113,7 +124,8 @@ internal class HandCard() {
     /**
      * 向手牌内加一张牌
      */
-    private fun add(pokerCard: PokerCard) = handCard.add(pokerCard)
+    //Mark(punlic to private)
+    public fun add(pokerCard: PokerCard) = handCard.add(pokerCard)
 
     /**
      * 检查是否构成黑杰克
@@ -154,14 +166,4 @@ internal class HandCard() {
         return res
     }
 
-    var standFlag = false
-    var bustFlag = false
-    var doubleFlag = false
-    var splitFlag = false
-    var blackJackFlag = false
-
-    /**
-     * 手牌
-     */
-    private val handCard = mutableListOf<PokerCard>()
 }

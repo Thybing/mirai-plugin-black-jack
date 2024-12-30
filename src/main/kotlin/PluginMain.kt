@@ -13,6 +13,7 @@ import net.mamoe.mirai.utils.info
 import org.example.mirai.plugin.blackjack.BlackJackRound
 import org.example.mirai.plugin.blackjack.BlackJackManager
 import org.example.mirai.plugin.blackjack.BlackJackManager.addGame
+import org.example.mirai.plugin.blackjack.HandPicCreater
 
 /**
  * 使用 kotlin 版请把
@@ -51,6 +52,16 @@ object PluginMain : KotlinPlugin(
     override fun onEnable() {
         logger.info { "Plugin loaded" }
         //配置文件目录 "${dataFolder.absolutePath}/"
+
+        try {
+            //加载图片资源文件
+            HandPicCreater.toString()
+        } catch (e: Exception) {
+            // 捕获初始化过程中可能发生的异常
+            println("An error occurred during HandPicCreater initialization: ${e.message}")
+            e.printStackTrace()
+            return
+        }
 
         val eventChannel = GlobalEventChannel.parentScope(this)
         eventChannel.subscribeAlways<GroupMessageEvent> {
