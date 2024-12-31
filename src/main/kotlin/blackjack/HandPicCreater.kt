@@ -55,9 +55,9 @@ internal object HandPicCreater {
         )
         val graph = copiedBackground.createGraphics()
 
+        drawHandPic(banker.curHand,graph,shadowFirst)
         graph.drawImage(banker.player.avatar,30,30,null)
 
-        drawHandPic(banker.curHand,graph,shadowFirst)
         graph.translate(0,backGroundPic.height)
 
         graph.dispose() // 释放资源
@@ -72,9 +72,9 @@ internal object HandPicCreater {
         )
         val graph = copiedBackground.createGraphics()
 
+        drawHandPic(punter.curHand,graph)
         graph.drawImage(punter.player.avatar,30,30,null)
 
-        drawHandPic(punter.curHand,graph)
         graph.translate(0,backGroundPic.height)
 
         for (handCard in punter.preHand.reversed()) {
@@ -107,12 +107,12 @@ internal object HandPicCreater {
     }
 }
 
-suspend fun bufferedImageToResource(image: BufferedImage) : ExternalResource {
+suspend fun bufferedImageToFile(image: BufferedImage) : File {
     val tempFile = withContext(Dispatchers.IO) {
         File.createTempFile("image", ".png")
     }
     withContext(Dispatchers.IO) {
         ImageIO.write(image, "png", tempFile)
     }
-    return tempFile.toExternalResource()
+    return tempFile
 }

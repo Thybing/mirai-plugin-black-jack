@@ -6,8 +6,6 @@ import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.message.data.PlainText
 import net.mamoe.mirai.message.data.at
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
-import java.io.File
-import javax.imageio.ImageIO
 
 
 internal class BlackJackRound {
@@ -29,7 +27,7 @@ internal class BlackJackRound {
             if (active.startsWith('$')) {
                 try {
                     val chip = active.substringAfter('$').toInt()
-                    if(chip <= 0) {
+                    if(chip < 0) {
                         event.group.sendMessage(curPunter.player.member.at() + "下注金额不合法")
                         return
                     }
@@ -71,10 +69,11 @@ internal class BlackJackRound {
             if(curPunter == null) return
             val op = strToOperate(active) ?: return
             punterOperate(curPunter, op)
-            showPunterHand(curPunter)
+
 
             if(isPuntersEnd()) {
                 event.group.sendMessage(PlainText("请庄家开始说话") + banker.player.member.at())
+                showBankerHand(banker,false)
                 roundState++
             } else {
                 return
@@ -86,10 +85,9 @@ internal class BlackJackRound {
             if(banker.player.member != event.sender) return
             val op = strToOperate(active) ?: return
             bankerOperate(op)
-            showBankerHand(banker,false)
 
             if(isBankerEnd()) {
-                event.group.sendMessage("本局结束，开始结算")
+                event.group.sendMessage("开始结算本轮:")
                 roundState++
             }
         }
@@ -97,7 +95,7 @@ internal class BlackJackRound {
         //结算
         if(roundState == 5) {
             settlement()
-//            TODO("show pic")
+            showLast()
         }
     }
 
@@ -150,8 +148,12 @@ internal class BlackJackRound {
         punter.player.member.at() +
         when(operate) {
             Operate.Hit -> when(punter.curHand.hit(dealer)) {
-                HitResult.Success -> "Hit成功"
+                HitResult.Success -> {
+                    showPunterHand(punter)
+                    "Hit成功"
+                }
                 HitResult.SuccessButBust -> {
+                    showPunterHand(punter)
                     "Hit后爆牌"
                 }
                 HitResult.HadBust -> "已经爆牌"
@@ -164,10 +166,12 @@ internal class BlackJackRound {
                     when(punter.curHand.double(dealer)) {
                         DoubleResult.Success -> {
                             punter.player.changeMoney(punter.chip * -1)
+                            showPunterHand(punter)
                             "加倍成功"
                         }
                         DoubleResult.SuccessButBust -> {
                             punter.player.changeMoney(punter.chip * -1)
+                            showPunterHand(punter)
                             "加倍后爆牌"
                         }
                         DoubleResult.HadBust -> "已经爆牌"
@@ -195,6 +199,7 @@ internal class BlackJackRound {
                         punter.splitStack.add(it)
                     }
                     nextHand(punter)
+                    showPunterHand(punter)
                     "分牌成功"
                 }
             }
@@ -206,6 +211,7 @@ internal class BlackJackRound {
                         "当前的手牌还未结束"
                     }
                     else if (nextHand(punter,true)) {
+                        showPunterHand(punter)
                         "切换至下一套牌"
                     } else {
                         "没有下一套牌了"
@@ -226,8 +232,14 @@ internal class BlackJackRound {
                     "大于等于17点,庄家不可要牌"
                 } else {
                     when(banker.curHand.hit(dealer)) {
-                        HitResult.Success -> "Hit成功"
-                        HitResult.SuccessButBust -> "Hit后爆牌"
+                        HitResult.Success -> {
+                            showBankerHand(banker,false)
+                            "Hit成功"
+                        }
+                        HitResult.SuccessButBust -> {
+                            showBankerHand(banker,false)
+                            "Hit后爆牌"
+                        }
                         HitResult.HadBust -> "已经爆牌"
                         HitResult.HadStand -> "已经停牌"
                     }
@@ -309,25 +321,42 @@ internal class BlackJackRound {
     }
 
     private suspend fun showBankerHand(banker: Banker,shadowFirst : Boolean) {
-        banker.player.member.group.sendMessage(banker.player.member.at() + "\n" +
-            banker.player.member.group.uploadImage(
-                bufferedImageToResource(HandPicCreater.createBankerPic(banker,shadowFirst))
-            )
+        val imgFile = bufferedImageToFile(HandPicCreater.createBankerPic(banker,shadowFirst))
+        val fileResource = imgFile.toExternalResource()
+        banker.player.member.group.sendMessage(
+            banker.player.member.group.uploadImage(fileResource)
         )
+        withContext(Dispatchers.IO) {
+            fileResource.close()
+        }
+        imgFile.delete()
     }
 
     // 展示闲家手牌
     private suspend fun showPunterHand(punter: Punter) {
-        punter.player.member.group.sendMessage(punter.player.member.at() + "\n" +
-            punter.player.member.group.uploadImage(
-                bufferedImageToResource(HandPicCreater.createPunterPic(punter))
-            )
+        val imgFile = bufferedImageToFile(HandPicCreater.createPunterPic(punter))
+        val fileResource = imgFile.toExternalResource()
+        punter.player.member.group.sendMessage(
+            punter.player.member.group.uploadImage(fileResource)
         )
+        withContext(Dispatchers.IO) {
+            fileResource.close()
+        }
+        imgFile.delete()
     }
 
     private suspend fun showInitHand() {
         showBankerHand(banker,true)
         punters.forEach {
+            showPunterHand(it)
+        }
+    }
+
+    private suspend fun showLast() {
+        showBankerHand(banker,false)
+        punters.forEach {
+            //防止重复打印
+            it.preHand.removeLast()
             showPunterHand(it)
         }
     }
