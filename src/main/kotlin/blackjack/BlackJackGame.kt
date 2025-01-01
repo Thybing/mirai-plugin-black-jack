@@ -32,8 +32,10 @@ internal class BlackJackGame(private val group: Group,private val onGameOver: (G
                 eventHandler(event)
             }
         }catch(e: Exception) {
-            group.sendMessage("游戏异常结束")
-            print(e.message)
+            if(e !is CancellationException) {
+                group.sendMessage("游戏异常结束")
+                println(e.message)
+            }
         }finally {
 //            TODO("资金结算")
             onGameOver(group)

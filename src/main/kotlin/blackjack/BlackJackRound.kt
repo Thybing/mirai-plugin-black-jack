@@ -3,8 +3,10 @@ package org.example.mirai.plugin.blackjack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.mamoe.mirai.event.events.GroupMessageEvent
+import net.mamoe.mirai.message.data.MessageChain
 import net.mamoe.mirai.message.data.PlainText
 import net.mamoe.mirai.message.data.at
+import net.mamoe.mirai.message.data.messageChainOf
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 
 
@@ -307,7 +309,7 @@ internal class BlackJackRound {
             banker.player.money = 0
 
             // 如果闲家输钱了，那么就对庄家进行赔付
-            var debt : Int = 0 // 庄家需要赔付的金额
+            var debt = 0 // 庄家需要赔付的金额
             punters.forEach {
                 if (it.gains < 0) {
                     if(!it.player.changeMoney(it.gains)) throw IllegalStateException("punter money change error")
@@ -402,26 +404,69 @@ internal class BlackJackRound {
     }
 
     private suspend fun showInitHand() {
-        val bankerHandPicFile = bufferedImageToFile(HandPicCreator.createBankerPic(banker,false))
+        sendBankerInitHand()
+
+        var picChain : MessageChain = messageChainOf()
+
+        var imgFile = bufferedImageToFile(HandPicCreator.createBankerPic(banker,true))
+        var fileResource = imgFile.toExternalResource()
+        picChain += banker.player.member.group.uploadImage(fileResource)
+        withContext(Dispatchers.IO) {
+            fileResource.close()
+        }
+        imgFile.delete()
+
+        punters.forEach { punter ->
+            imgFile = bufferedImageToFile(HandPicCreator.createPunterPic(punter))
+            fileResource = imgFile.toExternalResource()
+            picChain += punter.player.member.group.uploadImage(fileResource)
+            withContext(Dispatchers.IO) {
+                fileResource.close()
+            }
+            imgFile.delete()
+        }
+        banker.player.member.group.sendMessage(picChain)
+    }
+
+    private suspend fun showSettlementPic() {
+        var picChain : MessageChain = messageChainOf()
+
+        var imgFile = bufferedImageToFile(HandPicCreator.createBankerPic(banker,false))
+        var fileResource = imgFile.toExternalResource()
+
+        picChain += banker.player.member.group.uploadImage(fileResource)
+
+        withContext(Dispatchers.IO) {
+            fileResource.close()
+        }
+        imgFile.delete()
+
+        punters.forEach { punter ->
+            imgFile = bufferedImageToFile(HandPicCreator.createPunterPic(punter))
+            fileResource = imgFile.toExternalResource()
+            picChain += punter.player.member.group.uploadImage(fileResource)
+            withContext(Dispatchers.IO) {
+                fileResource.close()
+            }
+            imgFile.delete()
+        }
+        banker.player.member.group.sendMessage(picChain)
+    }
+
+    private suspend fun sendBankerInitHand() {
+        val bankerHandPicFile = bufferedImageToFile(HandPicCreator.createBankerPic(banker, false))
         val fileResource = bankerHandPicFile.toExternalResource()
-        banker.player.member.sendMessage(PlainText("您的底牌为") +
-            banker.player.member.uploadImage(fileResource)
-        )
+        try {
+            banker.player.member.sendMessage(
+                PlainText("您的底牌为") +
+                    banker.player.member.uploadImage(fileResource)
+            )
+        } catch (_: Exception) {
+            println("发送底牌失败: Group${banker.player.member.group.id} ,QQ${banker.player.member.id}")
+        }
         withContext(Dispatchers.IO) {
             fileResource.close()
         }
         bankerHandPicFile.delete()
-
-        showBankerHand(banker,true)
-        punters.forEach {
-            showPunterHand(it)
-        }
-    }
-
-    private suspend fun showSettlementPic() {
-        showBankerHand(banker,false)
-        punters.forEach {
-            showPunterHand(it)
-        }
     }
 }
