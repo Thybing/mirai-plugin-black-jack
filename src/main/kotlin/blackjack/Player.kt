@@ -23,7 +23,6 @@ internal class Player(val member : Member, var money : Int) {
 internal class Banker(val player: Player) {
     //玩家当前正在操作的手牌
     var curHand : HandCard = HandCard()
-    var gains : Int = 0
 }
 
 internal class Punter(val player: Player) {
@@ -34,7 +33,6 @@ internal class Punter(val player: Player) {
     val splitStack : MutableList<HandCard> = mutableListOf()
 
     var chip: Int = -1
-    var gains : Int = 0
 
     /**
      * 闲家下注

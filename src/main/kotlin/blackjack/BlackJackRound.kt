@@ -203,6 +203,7 @@ internal class BlackJackRound {
                     }
                     nextHand(punter)
                     showPunterHand(punter)
+                    punter.player.changeMoney(punter.chip * -1)
                     "分牌成功"
                 }
             }
@@ -271,25 +272,26 @@ internal class BlackJackRound {
      * 游戏结束结算
      */
     private suspend fun settlement() {
-        //统计庄家和闲家的输赢
-        banker.gains = 0
+        //先结算赌注的归属
+        var debt = 0
         punters.forEach { punter ->
-            punter.gains = 0
-
             // 将curHand添加到pre中，方便统一处理
             punter.preHand.add(punter.curHand)
-
             punter.preHand.forEach {
                 when(compare(it)){
                     CompareRes.Banker -> {
-                        banker.gains += if(it.doubleFlag) punter.chip * 2 else punter.chip
+                        //赌注归庄家
+                        banker.player.money += if(it.doubleFlag) punter.chip * 2 else punter.chip
                     }
                     CompareRes.Punter -> {
-                        banker.gains -= if (it.doubleFlag) punter.chip * 2 else punter.chip
-                        punter.gains += (if (it.doubleFlag) punter.chip * 2 else punter.chip) * 2
+                        //庄家需要赔付的金额
+                        debt += if(it.doubleFlag) punter.chip * 2 else punter.chip
+                        //赌注归闲家
+                        punter.player.money += if (it.doubleFlag) punter.chip * 2 else punter.chip
                     }
                     CompareRes.Tie -> {
-                        punter.gains += if(it.doubleFlag) punter.chip * 2 else punter.chip
+                        //赌注归闲家
+                        punter.player.money += if(it.doubleFlag) punter.chip * 2 else punter.chip
                     }
                 }
             }
@@ -297,36 +299,37 @@ internal class BlackJackRound {
             punter.preHand.removeLast()
         }
 
-        //如果庄家可以成功结算
-        if(banker.player.changeMoney(banker.gains)) {
-            punters.forEach {
-                //由于闲家的每一次操作都会进行资产检查，所以这里一定不会出现资产不足的情况，否则就是程序逻辑错误
-                if(!it.player.changeMoney(it.gains)) throw IllegalStateException("punter money change error")
+        //如果庄家可以成功结算，那么就按照赌注进行赔付，代码如同上
+        if(banker.player.changeMoney(debt * -1)) {
+            punters.forEach { punter ->
+                punter.preHand.add(punter.curHand)
+                punter.preHand.forEach {
+                    if(compare(it) == CompareRes.Punter){
+                        // 庄家赔付一份赌注给闲家
+                        punter.player.money += if (it.doubleFlag) punter.chip * 2 else punter.chip
+                    }
+                }
+                // 将添加的curHand移除
+                punter.preHand.removeLast()
             }
         } else {
-            //庄家破产的情况，先将庄家的钱取出
-            var leftMoney : Int = banker.player.money
+            banker.player.member.group.sendMessage("由于庄家的破产保护，所以对于赢的钱只能按照比例进行赔付")
+            // 先将庄家的钱全部取出
+            val leftMoney = banker.player.money
             banker.player.money = 0
 
-            // 如果闲家输钱了，那么就对庄家进行赔付
-            var debt = 0 // 庄家需要赔付的金额
-            punters.forEach {
-                if (it.gains < 0) {
-                    if(!it.player.changeMoney(it.gains)) throw IllegalStateException("punter money change error")
-                    leftMoney += (-it.gains) // 闲家赔付的钱直接加到庄家的剩余钱中
+            punters.forEach { punter ->
+                punter.preHand.add(punter.curHand)
+                punter.preHand.forEach {
+                    if(compare(it) == CompareRes.Punter){
+                        // 庄家以一定的比例赔付给闲家
+                        val ori = if (it.doubleFlag) punter.chip * 2 else punter.chip
+                        punter.player.money += ori * leftMoney / debt
+                    }
                 }
-                else {
-                    debt += it.gains // 闲家赢的钱加到庄家需要赔付的金额中
-                }
+                // 将添加的curHand移除
+                punter.preHand.removeLast()
             }
-
-            // 结算庄家的赔付，由于庄家不够赔付，所以按照比例进行赔付
-            punters.forEach {
-                if (it.gains > 0) {
-                    it.player.changeMoney((it.gains * leftMoney / debt))
-                }
-            }
-            banker.player.member.group.sendMessage("由于庄家的破产保护，所以对于赢的钱只能按照比例进行赔付")
         }
 
         //检查是否有人破产
