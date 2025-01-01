@@ -1,19 +1,13 @@
 package org.example.mirai.plugin
 
-import net.mamoe.mirai.console.permission.AbstractPermitteeId
-import net.mamoe.mirai.console.permission.PermissionService
-import net.mamoe.mirai.console.permission.PermissionService.Companion.hasPermission
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
 import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
-import net.mamoe.mirai.contact.Member
-import net.mamoe.mirai.contact.User
 import net.mamoe.mirai.event.GlobalEventChannel
 import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.utils.info
-import org.example.mirai.plugin.blackjack.BlackJackRound
 import org.example.mirai.plugin.blackjack.BlackJackManager
 import org.example.mirai.plugin.blackjack.BlackJackManager.addGame
-import org.example.mirai.plugin.blackjack.HandPicCreater
+import org.example.mirai.plugin.blackjack.HandPicCreator
 
 /**
  * 使用 kotlin 版请把
@@ -30,23 +24,18 @@ import org.example.mirai.plugin.blackjack.HandPicCreater
  * 不用复制到 mirai-console-loader 或其他启动器中调试
  */
 
-private var blackJackRound: BlackJackRound = BlackJackRound()
-private var status = 0
-
 object PluginMain : KotlinPlugin(
     JvmPluginDescription(
-        id = "org.example.mirai-example",
-        name = "插件示例",
+        id = "org.example.black-jack",
+        name = "21点",
         version = BuildConstants.VERSION
     ) {
-        author("作者名称或联系方式")
+        author("Thybing")
         info(
             """
-            这是一个测试插件, 
-            在这里描述插件的功能和用法等.
+            一个用于游玩21点的插件
         """.trimIndent()
         )
-        // author 和 info 可以删除.
     }
 ) {
     override fun onEnable() {
@@ -55,17 +44,16 @@ object PluginMain : KotlinPlugin(
 
         try {
             //加载图片资源文件
-            HandPicCreater.toString()
+            HandPicCreator.toString()
         } catch (e: Exception) {
             // 捕获初始化过程中可能发生的异常
-            println("An error occurred during HandPicCreater initialization: ${e.message}")
+            println("An error occurred during HandPicCreator initialization: ${e.message}")
             e.printStackTrace()
             return
         }
 
         val eventChannel = GlobalEventChannel.parentScope(this)
         eventChannel.subscribeAlways<GroupMessageEvent> {
-
             /**
              * 用于处理接收消息
             //每收到一条消息，先判断是否是开始游戏
@@ -75,6 +63,7 @@ object PluginMain : KotlinPlugin(
             //如果是，转发消息事件，由游戏部分处理
             """
              */
+
             val text = message.contentToString()
             if(text == "玩21点") {
                 if(BlackJackManager.isGroupGaming(group)) {
@@ -89,49 +78,37 @@ object PluginMain : KotlinPlugin(
             /**
              * 发送者来自正在游戏的群
              */
+            /**
+             * 如果正在加入游戏中，转发消息
+             * 或者，发送者在群游戏中，如果满足则转发消息
+             */
             if(BlackJackManager.isGroupGaming(group)) {
-                when {
-                    /**
-                     * 正在加入游戏中，转发消息
-                     */
-                    BlackJackManager.isAddGame(group) -> {
-                        BlackJackManager.forwardMessage(it)
-                    }
-                    /**
-                     * 如果是加入完成，检查发送者是否在群游戏中，如果满足则转发消息
-                     */
-                    BlackJackManager.isMemberGaming(sender) -> {
-                        BlackJackManager.forwardMessage(it)
-                    }
+                if(BlackJackManager.isAddGame(group) || BlackJackManager.isMemberGaming(sender)) {
+                    BlackJackManager.forwardMessage(it)
                 }
             } else {
-                /**
-                 * 其它情况下不进行转发，提高效率
-                 */
                 return@subscribeAlways
             }
-
         }
-        myCustomPermission // 注册权限
     }
 
-    // region console 权限系统示例
-    private val myCustomPermission by lazy { // Lazy: Lazy 是必须的, console 不允许提前访问权限系统
-        // 注册一条权限节点 org.example.mirai-example:my-permission
-        // 并以 org.example.mirai-example:* 为父节点
+//    // region console 权限系统示例
+//    private val myCustomPermission by lazy { // Lazy: Lazy 是必须的, console 不允许提前访问权限系统
+//        // 注册一条权限节点 org.example.mirai-example:my-permission
+//        // 并以 org.example.mirai-example:* 为父节点
+//
+//        // @param: parent: 父权限
+//        //                 在 Console 内置权限系统中, 如果某人拥有父权限
+//        //                 那么意味着此人也拥有该权限 (org.example.mirai-example:my-permission)
+//        // @func: PermissionIdNamespace.permissionId: 根据插件 id 确定一条权限 id
+//        PermissionService.INSTANCE.register(permissionId("my-permission"), "一条自定义权限", parentPermission)
+//    }
 
-        // @param: parent: 父权限
-        //                 在 Console 内置权限系统中, 如果某人拥有父权限
-        //                 那么意味着此人也拥有该权限 (org.example.mirai-example:my-permission)
-        // @func: PermissionIdNamespace.permissionId: 根据插件 id 确定一条权限 id
-        PermissionService.INSTANCE.register(permissionId("my-permission"), "一条自定义权限", parentPermission)
-    }
-
-    public fun hasCustomPermission(sender: User): Boolean {
-        return when (sender) {
-            is Member -> AbstractPermitteeId.ExactMember(sender.group.id, sender.id)
-            else -> AbstractPermitteeId.ExactUser(sender.id)
-        }.hasPermission(myCustomPermission)
-    }
+//    public fun hasCustomPermission(sender: User): Boolean {
+//        return when (sender) {
+//            is Member -> AbstractPermitteeId.ExactMember(sender.group.id, sender.id)
+//            else -> AbstractPermitteeId.ExactUser(sender.id)
+//        }.hasPermission(myCustomPermission)
+//    }
     // endregion
 }

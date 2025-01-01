@@ -24,6 +24,7 @@ internal class HandCard() {
     //状态标志
     var standFlag = false
     var bustFlag = false
+        private set
     var doubleFlag = false
     var splitFlag = false
     var blackJackFlag = false
@@ -147,7 +148,7 @@ internal class HandCard() {
     /**
      * 检查是否爆牌
      */
-    fun isBust() : Boolean {
+    private fun isBust() : Boolean {
         return handCard.sumOf { if (it.rank.num > 10) 10 else it.rank.num } > 21
     }
 

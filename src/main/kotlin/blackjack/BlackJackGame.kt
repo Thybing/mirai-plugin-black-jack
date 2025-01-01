@@ -10,9 +10,12 @@ import net.mamoe.mirai.message.data.*
 
 internal class BlackJackGame(private val group: Group,private val onGameOver: (Group) -> Unit) {
     val gamePlayer : MutableList<Player> = mutableListOf()
-    var curBankerIndex : Int = -1
-    var curRound : BlackJackRound? = null
+    private var curBankerIndex : Int = -1
+    private var curRound : BlackJackRound? = null
+
     var ready : Boolean = false
+        private set
+
     private val filteredGroupMessage = Channel<GroupMessageEvent>()
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -29,28 +32,37 @@ internal class BlackJackGame(private val group: Group,private val onGameOver: (G
                 eventHandler(event)
             }
         }catch(e: Exception) {
-            TODO("异常处理")
+            group.sendMessage("游戏异常结束")
+            print(e.message)
         }finally {
+//            TODO("资金结算")
             onGameOver(group)
-//            TODO("资源回收")
         }
     }
 
+    //处理游戏消息
     private suspend fun eventHandler(event: GroupMessageEvent) {
+        //如果游戏未开始，处理加入游戏消息
         if(!ready) {
             addPlayer(event)
             return
         }
-        curRound?.gameProcess(event)?: throw Exception("ready for game but round was null")
+
+        curRound?.roundProcess(event)?: throw Exception("ready for game but round was null")
+        //如果游戏结束，结算并开始下一轮
         if (curRound?.isRoundEnd()?:throw Exception("ready for game but round was null")) {
+            //结算消息
             var tmp = "结算："
             for (player in gamePlayer) {
                 tmp += ("\n" + player.member.nameCardOrNick + ": $" + player.money)
             }
             group.sendMessage(tmp)
+
+            //如果还有下一轮，开始下一轮
             if(nextRound()) {
                 startRound(event)
             } else {
+                group.sendMessage("游戏结束!!!")
                 scope.cancel()
             }
         }
@@ -83,19 +95,34 @@ internal class BlackJackGame(private val group: Group,private val onGameOver: (G
         }
     }
 
+    //开始下一轮游戏
     private fun nextRound() : Boolean{
         curBankerIndex++
+        //如果庄家轮完一圈，游戏结束
         if(curBankerIndex >= gamePlayer.count()) {
             return false
         }
+
+        //如果庄家破产，跳过
+        if(gamePlayer[curBankerIndex].isBankruptcy) {
+            return nextRound()
+        }
+
         curRound = BlackJackRound()
         curRound?.setBanker(gamePlayer[curBankerIndex])?:throw IllegalStateException("BlackJackRound create err")
+
+        //如果全部的闲家都破产，游戏结束
+        var ret = false
         for(each in gamePlayer) {
             if(each != gamePlayer[curBankerIndex]) {
-                curRound?.addPunter(each)
+                if(each.isBankruptcy) {
+                    continue
+                }
+                curRound?.addPunter(each)?:throw IllegalStateException("BlackJackRound create err")
+                ret = true
             }
         }
-        return true
+        return ret
     }
 
     private suspend fun startRound(event: GroupMessageEvent) {

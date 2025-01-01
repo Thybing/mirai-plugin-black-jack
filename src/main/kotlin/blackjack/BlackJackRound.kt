@@ -15,11 +15,12 @@ internal class BlackJackRound {
 
     private var roundState : Int = 0
 
-    suspend fun gameProcess(event: GroupMessageEvent) {
+    suspend fun roundProcess(event: GroupMessageEvent) {
         val active = event.message.contentToString()
         val curPunter = punters.find { it.player.member == event.sender }
         if(curPunter == null && event.sender != banker.player.member) {
-            throw IllegalStateException("member into game gameProcess but isn't banker or punter")
+            //如果不是庄家也不是闲家，那么说明该玩家已经破产
+            return
         }
         //闲家下注
         if(roundState == 0) {
@@ -95,7 +96,7 @@ internal class BlackJackRound {
         //结算
         if(roundState == 5) {
             settlement()
-            showLast()
+            showSettlementPic()
         }
     }
 
@@ -207,7 +208,7 @@ internal class BlackJackRound {
                 if (!punter.curHand.splitFlag) {
                     "您没有分过牌"
                 } else {
-                    if (!(punter.curHand.isBust() || punter.curHand.standFlag)) {
+                    if (!(punter.curHand.bustFlag || punter.curHand.standFlag)) {
                         "当前的手牌还未结束"
                     }
                     else if (nextHand(punter,true)) {
@@ -226,7 +227,7 @@ internal class BlackJackRound {
         banker.player.member.at() +
         when(operate) {
             Operate.Hit -> {
-                if(banker.curHand.isBust()) {
+                if(banker.curHand.bustFlag) {
                     "已经爆牌"
                 } else if(banker.curHand.getValue() >= 17) {
                     "大于等于17点,庄家不可要牌"
@@ -258,28 +259,83 @@ internal class BlackJackRound {
             else -> "庄家只能要牌或停牌"
         })
 
-    fun isPuntersEnd() : Boolean = punters.all{
-        (it.curHand.standFlag || it.curHand.isBust()) && it.splitStack.isEmpty()
+    private fun isPuntersEnd() : Boolean = punters.all{
+        (it.curHand.standFlag || it.curHand.bustFlag) && it.splitStack.isEmpty()
     }
 
-    fun isBankerEnd() : Boolean = banker.curHand.isBust() || banker.curHand.standFlag
+    private fun isBankerEnd() : Boolean = banker.curHand.bustFlag || banker.curHand.standFlag
 
     /**
      * 游戏结束结算
      */
-    fun settlement() {
+    private suspend fun settlement() {
+        //统计庄家和闲家的输赢
+        banker.gains = 0
         punters.forEach { punter ->
-            // 将curHand添加到pre中
+            punter.gains = 0
+
+            // 将curHand添加到pre中，方便统一处理
             punter.preHand.add(punter.curHand)
+
             punter.preHand.forEach {
                 when(compare(it)){
-                    CompareRes.Banker -> banker.player.money += if(it.doubleFlag) punter.chip * 2 else punter.chip
-                    CompareRes.Punter -> {
-                        banker.player.money -= if (it.doubleFlag) punter.chip * 2 else punter.chip
-                        punter.player.money += (if (it.doubleFlag) punter.chip * 2 else punter.chip) * 2
+                    CompareRes.Banker -> {
+                        banker.gains += if(it.doubleFlag) punter.chip * 2 else punter.chip
                     }
-                    CompareRes.Tie -> punter.player.money += if(it.doubleFlag) punter.chip * 2 else punter.chip
+                    CompareRes.Punter -> {
+                        banker.gains -= if (it.doubleFlag) punter.chip * 2 else punter.chip
+                        punter.gains += (if (it.doubleFlag) punter.chip * 2 else punter.chip) * 2
+                    }
+                    CompareRes.Tie -> {
+                        punter.gains += if(it.doubleFlag) punter.chip * 2 else punter.chip
+                    }
                 }
+            }
+            // 将添加的curHand移除
+            punter.preHand.removeLast()
+        }
+
+        //如果庄家可以成功结算
+        if(banker.player.changeMoney(banker.gains)) {
+            punters.forEach {
+                //由于闲家的每一次操作都会进行资产检查，所以这里一定不会出现资产不足的情况，否则就是程序逻辑错误
+                if(!it.player.changeMoney(it.gains)) throw IllegalStateException("punter money change error")
+            }
+        } else {
+            //庄家破产的情况，先将庄家的钱取出
+            var leftMoney : Int = banker.player.money
+            banker.player.money = 0
+
+            // 如果闲家输钱了，那么就对庄家进行赔付
+            var debt : Int = 0 // 庄家需要赔付的金额
+            punters.forEach {
+                if (it.gains < 0) {
+                    if(!it.player.changeMoney(it.gains)) throw IllegalStateException("punter money change error")
+                    leftMoney += (-it.gains) // 闲家赔付的钱直接加到庄家的剩余钱中
+                }
+                else {
+                    debt += it.gains // 闲家赢的钱加到庄家需要赔付的金额中
+                }
+            }
+
+            // 结算庄家的赔付，由于庄家不够赔付，所以按照比例进行赔付
+            punters.forEach {
+                if (it.gains > 0) {
+                    it.player.changeMoney((it.gains * leftMoney / debt))
+                }
+            }
+            banker.player.member.group.sendMessage("由于庄家的破产保护，所以对于赢的钱只能按照比例进行赔付")
+        }
+
+        //检查是否有人破产
+        if(banker.player.money == 0) {
+            banker.player.member.group.sendMessage(banker.player.member.at() + "资产归零")
+            banker.player.isBankruptcy = true
+        }
+        punters.forEach {
+            if(it.player.money == 0) {
+                it.player.isBankruptcy = true
+                it.player.member.group.sendMessage(it.player.member.at() + "资产归零")
             }
         }
     }
@@ -290,12 +346,12 @@ internal class BlackJackRound {
     private enum class CompareRes {Banker, Punter, Tie}
 
     /**
-     * 用于比较手牌大小
+     * 用于和庄家比较手牌大小
      */
     private fun compare(handCard: HandCard) : CompareRes = when{
-        //有手牌炸掉的情况：爆牌算对方赢，双方爆牌算庄赢，所以先结算闲家的爆牌
-        handCard.isBust() -> CompareRes.Banker
-        banker.curHand.isBust() -> CompareRes.Punter
+        //手牌炸掉的情况：爆牌算对方赢，双方爆牌算庄赢，所以先结算闲家的爆牌
+        handCard.bustFlag -> CompareRes.Banker
+        banker.curHand.bustFlag -> CompareRes.Punter
         //比较是否出现黑杰克
         banker.curHand.isBlackJack() && handCard.isBlackJack() -> CompareRes.Tie
         banker.curHand.isBlackJack() -> CompareRes.Banker
@@ -321,7 +377,7 @@ internal class BlackJackRound {
     }
 
     private suspend fun showBankerHand(banker: Banker,shadowFirst : Boolean) {
-        val imgFile = bufferedImageToFile(HandPicCreater.createBankerPic(banker,shadowFirst))
+        val imgFile = bufferedImageToFile(HandPicCreator.createBankerPic(banker,shadowFirst))
         val fileResource = imgFile.toExternalResource()
         banker.player.member.group.sendMessage(
             banker.player.member.group.uploadImage(fileResource)
@@ -334,7 +390,7 @@ internal class BlackJackRound {
 
     // 展示闲家手牌
     private suspend fun showPunterHand(punter: Punter) {
-        val imgFile = bufferedImageToFile(HandPicCreater.createPunterPic(punter))
+        val imgFile = bufferedImageToFile(HandPicCreator.createPunterPic(punter))
         val fileResource = imgFile.toExternalResource()
         punter.player.member.group.sendMessage(
             punter.player.member.group.uploadImage(fileResource)
@@ -346,17 +402,25 @@ internal class BlackJackRound {
     }
 
     private suspend fun showInitHand() {
+        val bankerHandPicFile = bufferedImageToFile(HandPicCreator.createBankerPic(banker,false))
+        val fileResource = bankerHandPicFile.toExternalResource()
+        banker.player.member.sendMessage(PlainText("您的底牌为") +
+            banker.player.member.uploadImage(fileResource)
+        )
+        withContext(Dispatchers.IO) {
+            fileResource.close()
+        }
+        bankerHandPicFile.delete()
+
         showBankerHand(banker,true)
         punters.forEach {
             showPunterHand(it)
         }
     }
 
-    private suspend fun showLast() {
+    private suspend fun showSettlementPic() {
         showBankerHand(banker,false)
         punters.forEach {
-            //防止重复打印
-            it.preHand.removeLast()
             showPunterHand(it)
         }
     }

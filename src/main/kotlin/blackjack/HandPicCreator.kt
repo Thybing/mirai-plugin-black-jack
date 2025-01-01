@@ -2,18 +2,14 @@ package org.example.mirai.plugin.blackjack
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import net.mamoe.mirai.utils.ExternalResource
-import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
-import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
 import java.awt.Graphics
-import java.awt.Image
 import java.awt.image.BufferedImage
 import java.io.File
 import java.net.URL
 import javax.imageio.ImageIO
 
-internal object HandPicCreater {
-    val backGroundPic = loadImage("/pic/background.png")
+internal object HandPicCreator {
+    private val backGroundPic: BufferedImage = loadImage("/pic/background.png")
     private val pokerCardPic: MutableMap<PokerCard, BufferedImage> = mutableMapOf()
     private val cardBackPic = loadImage("/pic/pokerCard/Back.png")
     private val defaultAvatar = loadImage("/pic/pokerCard/Back.png")

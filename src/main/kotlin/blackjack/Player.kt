@@ -5,7 +5,11 @@ import net.mamoe.mirai.message.data.at
 import java.awt.image.BufferedImage
 
 internal class Player(val member : Member, var money : Int) {
-    var avatar : BufferedImage = HandPicCreater.urlToBufferedImage("http://q2.qlogo.cn/headimg_dl?dst_uin=${member.id}&spec=100")
+    var avatar : BufferedImage = HandPicCreator.urlToBufferedImage("http://q2.qlogo.cn/headimg_dl?dst_uin=${member.id}&spec=100")
+        private set
+
+    var isBankruptcy : Boolean = false
+
     fun changeMoney(delta : Int) : Boolean {
         if (money + delta >= 0) {
             money += delta
@@ -16,10 +20,10 @@ internal class Player(val member : Member, var money : Int) {
     }
 }
 
-
 internal class Banker(val player: Player) {
     //玩家当前正在操作的手牌
     var curHand : HandCard = HandCard()
+    var gains : Int = 0
 }
 
 internal class Punter(val player: Player) {
@@ -30,6 +34,7 @@ internal class Punter(val player: Player) {
     val splitStack : MutableList<HandCard> = mutableListOf()
 
     var chip: Int = -1
+    var gains : Int = 0
 
     /**
      * 闲家下注
