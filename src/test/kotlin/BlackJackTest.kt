@@ -1,4 +1,4 @@
-package org.example.mirai.plugin.blackjack
+package org.thybing.mirai.plugin.blackjack
 
 import java.awt.Dimension
 
@@ -21,11 +21,4 @@ fun showImage(image: BufferedImage) {
 }
 
 fun main() {
-    val d = Dealer(4)
-    val h = HandCard()
-    h.initialCard(d)
-    repeat(5){
-    h.add(d.dealCard())
-    }
-//    showImage(HandPicCreater.drawHandPic(h,true))
 }

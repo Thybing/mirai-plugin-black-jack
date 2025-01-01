@@ -1,4 +1,4 @@
-package org.example.mirai.plugin.blackjack
+package org.thybing.mirai.plugin.blackjack
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

@@ -1,4 +1,4 @@
-package org.example.mirai.plugin.blackjack
+package org.thybing.mirai.plugin.blackjack
 
 
 internal enum class HitResult {
@@ -125,8 +125,7 @@ internal class HandCard() {
     /**
      * 向手牌内加一张牌
      */
-    //Mark(punlic to private)
-    public fun add(pokerCard: PokerCard) = handCard.add(pokerCard)
+    private fun add(pokerCard: PokerCard) = handCard.add(pokerCard)
 
     /**
      * 检查是否构成黑杰克

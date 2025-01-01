@@ -1,4 +1,4 @@
-package org.example.mirai.plugin.blackjack
+package org.thybing.mirai.plugin.blackjack
 
 import net.mamoe.mirai.contact.Member
 import net.mamoe.mirai.message.data.at

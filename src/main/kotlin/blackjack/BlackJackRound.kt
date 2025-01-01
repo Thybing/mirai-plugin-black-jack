@@ -1,6 +1,7 @@
-package org.example.mirai.plugin.blackjack
+package org.thybing.mirai.plugin.blackjack
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.message.data.MessageChain
@@ -19,7 +20,7 @@ internal class BlackJackRound {
 
     suspend fun roundProcess(event: GroupMessageEvent) {
         val active = event.message.contentToString()
-        val curPunter = punters.find { it.player.member == event.sender }
+        val curPunter : Punter? = punters.find { it.player.member == event.sender }
         if(curPunter == null && event.sender != banker.player.member) {
             //如果不是庄家也不是闲家，那么说明该玩家已经破产
             return
@@ -43,7 +44,6 @@ internal class BlackJackRound {
 
             if (isBetEnd()) {
                 roundState++
-                event.group.sendMessage("下注结束，开始发牌")
             } else {
                 return
             }
@@ -57,6 +57,7 @@ internal class BlackJackRound {
 
         //发牌后事件
         if(roundState == 2) {
+            delay(2000)
             if(banker.curHand.isBlackJack()) {
                 event.group.sendMessage("庄家底牌为BlackJack，进入结算")
                 roundState = 5 //直接进入结算阶段
@@ -73,8 +74,8 @@ internal class BlackJackRound {
             val op = strToOperate(active) ?: return
             punterOperate(curPunter, op)
 
-
             if(isPuntersEnd()) {
+                delay(2000)
                 event.group.sendMessage(PlainText("请庄家开始说话") + banker.player.member.at())
                 showBankerHand(banker,false)
                 roundState++
@@ -90,7 +91,7 @@ internal class BlackJackRound {
             bankerOperate(op)
 
             if(isBankerEnd()) {
-                event.group.sendMessage("开始结算本轮:")
+                delay(2000)
                 roundState++
             }
         }
@@ -99,6 +100,7 @@ internal class BlackJackRound {
         if(roundState == 5) {
             settlement()
             showSettlementPic()
+            delay(2000)
         }
     }
 
@@ -125,7 +127,7 @@ internal class BlackJackRound {
     /**
      * 发底牌
      */
-    fun initHand() {
+    private fun initHand() {
         banker.curHand.initialCard(dealer)
         punters.forEach{
             it.curHand.initialCard(dealer)
@@ -309,7 +311,6 @@ internal class BlackJackRound {
                         punter.player.money += if (it.doubleFlag) punter.chip * 2 else punter.chip
                     }
                 }
-                // 将添加的curHand移除
                 punter.preHand.removeLast()
             }
         } else {
@@ -409,7 +410,7 @@ internal class BlackJackRound {
     private suspend fun showInitHand() {
         sendBankerInitHand()
 
-        var picChain : MessageChain = messageChainOf()
+        var picChain : MessageChain = messageChainOf(PlainText("下注结束，开始发牌\n"))
 
         var imgFile = bufferedImageToFile(HandPicCreator.createBankerPic(banker,true))
         var fileResource = imgFile.toExternalResource()
@@ -432,7 +433,7 @@ internal class BlackJackRound {
     }
 
     private suspend fun showSettlementPic() {
-        var picChain : MessageChain = messageChainOf()
+        var picChain : MessageChain = messageChainOf(PlainText("最终手牌为:\n"))
 
         var imgFile = bufferedImageToFile(HandPicCreator.createBankerPic(banker,false))
         var fileResource = imgFile.toExternalResource()

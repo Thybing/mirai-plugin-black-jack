@@ -1,4 +1,4 @@
-package org.example.mirai.plugin.blackjack
+package org.thybing.mirai.plugin.blackjack
 
 data class PokerCard(val suit: Suit, val rank: Rank) {
     enum class Suit {Heart, Spade, Club, Diamond}

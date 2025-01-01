@@ -1,4 +1,4 @@
-package org.example.mirai.plugin.blackjack
+package org.thybing.mirai.plugin.blackjack
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -54,11 +54,12 @@ internal class BlackJackGame(private val group: Group,private val onGameOver: (G
         //如果游戏结束，结算并开始下一轮
         if (curRound?.isRoundEnd()?:throw Exception("ready for game but round was null")) {
             //结算消息
-            var tmp = "结算："
+            var chipShowStr = "筹码结算："
             for (player in gamePlayer) {
-                tmp += ("\n" + player.member.nameCardOrNick + ": $" + player.money)
+                chipShowStr += ("\n" + player.member.nameCardOrNick + ": $" + player.money)
             }
-            group.sendMessage(tmp)
+            group.sendMessage(chipShowStr)
+            delay(1000)
 
             //如果还有下一轮，开始下一轮
             if(nextRound()) {
