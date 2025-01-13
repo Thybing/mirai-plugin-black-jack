@@ -101,6 +101,12 @@ internal class BlackJackRound {
             settlement()
             showSettlementPic()
             delay(2000)
+            roundState ++
+        }
+
+        // 防止可能出现的异常情况导致重复结算的保护，执行了就说明有问题。
+        if(roundState == 6) {
+            throw IllegalStateException("round has been end")
         }
     }
 
